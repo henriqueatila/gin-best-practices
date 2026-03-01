@@ -145,12 +145,6 @@ gin-best-practices/
 │   ├── gin-database.zip
 │   ├── gin-deploy.zip
 │   └── gin-testing.zip
-│
-└── docs/
-    ├── CLAUDE.md                    # Build system prompt (used during skill creation)
-    ├── SPECIFICATION.md             # Full specification for all skills
-    ├── GUIDE.md                     # Writing guide for skill authors
-    └── GIN-API-REFERENCE.md         # Verified Gin API surface
 ```
 
 ---
@@ -178,7 +172,7 @@ gin-best-practices/
 3. SKILL.md files must stay under 500 lines — move detail to reference files
 4. Reference files over 300 lines must include a table of contents
 5. Use `gin.New()`, `log/slog`, `ShouldBind*`, and `context.Context` consistently
-6. Run the quality checklist in `docs/SPECIFICATION.md` before submitting a PR
+6. Verify all Gin API calls match official documentation before submitting a PR
 
 ---
 

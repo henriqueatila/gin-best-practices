@@ -16,11 +16,6 @@ gin-best-practices/
 │   ├── gin-database/     # PostgreSQL with GORM/sqlx, repository pattern
 │   ├── gin-deploy/       # Docker, docker-compose, Kubernetes, CI/CD
 │   └── gin-testing/      # Unit, integration, and e2e tests
-├── docs/
-│   ├── CLAUDE.md         # Build system prompt (used during skill creation)
-│   ├── SPECIFICATION.md  # Full specification for all skills
-│   ├── GUIDE.md          # Writing guide for skill authors
-│   └── GIN-API-REFERENCE.md  # Verified Gin API surface
 ├── CLAUDE.md             # This file (agent guidance)
 ├── AGENTS.md             # Multi-agent guidance
 ├── README.md             # Project overview
@@ -37,7 +32,7 @@ Each skill directory contains:
 
 ## Conventions
 
-- **Gin API calls**: Must match `docs/GIN-API-REFERENCE.md` exactly. Never invent methods.
+- **Gin API calls**: Must match official Gin documentation exactly. Never invent methods.
 - **Binding**: Use `ShouldBind*` (not `Bind*`) in all examples.
 - **Server setup**: Use `gin.New()` + explicit `r.Use(...)` (not `gin.Default()`).
 - **Goroutine safety**: Call `c.Copy()` before passing `*gin.Context` to goroutines.
@@ -47,7 +42,6 @@ Each skill directory contains:
 
 ## Modifying Skills
 
-1. Read `docs/SPECIFICATION.md` for content requirements
-2. Read `docs/GIN-API-REFERENCE.md` before writing any Gin code
-3. Keep `SKILL.md` under 500 lines — move detail to `references/`
-4. Run the quality checklist in `docs/SPECIFICATION.md` before committing
+1. Read official Gin documentation before writing any Gin code
+2. Keep `SKILL.md` under 500 lines — move detail to `references/`
+3. Use `ShouldBind*`, `gin.New()`, `c.Copy()`, `log/slog`, and `context.Context` consistently
