@@ -4,7 +4,7 @@ Core REST API patterns for the Go Gin framework.
 
 ## What's Included
 
-- **SKILL.md** — Server setup, routing, handler patterns, request binding/validation, error handling, and Clean Architecture project structure
+- **SKILL.md** — Server setup, routing, handler patterns, request binding/validation, error handling, and layered project structure
 - **references/routing.md** — Route groups, versioning, pagination, file uploads
 - **references/middleware.md** — CORS, rate limiting, request ID, timeout, recovery
 - **references/error-handling.md** — AppError system, validation errors, panic recovery

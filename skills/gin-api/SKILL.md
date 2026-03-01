@@ -16,7 +16,7 @@ Build production-grade REST APIs with Go and Gin. This skill covers the 80% of p
 - Creating a new Go REST API or HTTP server
 - Adding routes, handlers, or middleware to a Gin app
 - Binding and validating incoming JSON/query/URI parameters
-- Structuring a Go project with Clean Architecture
+- Structuring a Go project with a layered project structure
 - Wiring handlers → services → repositories in main.go
 - Returning consistent JSON error responses
 
