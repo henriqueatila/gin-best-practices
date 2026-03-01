@@ -3,6 +3,7 @@
 Agent Skills for building production-grade REST APIs with Go and the Gin framework.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Skills.sh](https://img.shields.io/badge/skills.sh-gin--best--practices-blue?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyTDIgNy41djlMMTIgMjJsMTAtNS41di05TDEyIDJ6Ii8+PC9zdmc+)](https://skills.sh/henriqueatila/gin-best-practices)
 
 ---
 
