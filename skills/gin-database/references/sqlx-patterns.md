@@ -582,7 +582,7 @@ func mapSqlxError(err error) error {
 // newUUID generates a new UUID string.
 // Use github.com/google/uuid in production.
 func newUUID() string {
-    return uuid.New().String()
+    return uuid.Must(uuid.NewV7()).String() // UUIDv7: time-sortable, better B-tree index performance
 }
 
 // buildCountQuery builds a parameterized COUNT query for the given options.

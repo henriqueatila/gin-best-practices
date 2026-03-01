@@ -422,7 +422,7 @@ GORM hooks (`BeforeCreate`, `AfterCreate`, etc.) run automatically but introduce
 // Use hooks for truly cross-cutting concerns (e.g., UUID generation)
 func (m *UserModel) BeforeCreate(tx *gorm.DB) error {
     if m.ID == "" {
-        m.ID = uuid.New().String()
+        m.ID = uuid.Must(uuid.NewV7()).String() // UUIDv7: time-sortable, better B-tree index performance
     }
     return nil
 }

@@ -223,7 +223,7 @@ func RequestID() gin.HandlerFunc {
     return func(c *gin.Context) {
         requestID := c.GetHeader(RequestIDHeader)
         if requestID == "" {
-            requestID = uuid.New().String()
+            requestID = uuid.Must(uuid.NewV7()).String() // UUIDv7: time-sortable, better B-tree index performance
         }
 
         c.Set(RequestIDKey, requestID)
