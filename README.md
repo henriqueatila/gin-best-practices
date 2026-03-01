@@ -1,9 +1,9 @@
-# gin-best-practices
+# golang-gin-best-practices
 
 Agent Skills for building production-grade REST APIs with Go and the Gin framework.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Skills.sh](https://img.shields.io/badge/skills.sh-gin--best--practices-blue?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyTDIgNy41djlMMTIgMjJsMTAtNS41di05TDEyIDJ6Ii8+PC9zdmc+)](https://skills.sh/henriqueatila/gin-best-practices)
+[![Skills.sh](https://img.shields.io/badge/skills.sh-golang--gin--best--practices-blue?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyTDIgNy41djlMMTIgMjJsMTAtNS41di05TDEyIDJ6Ii8+PC9zdmc+)](https://skills.sh/henriqueatila/golang-gin-best-practices)
 
 ---
 
@@ -11,11 +11,11 @@ Agent Skills for building production-grade REST APIs with Go and the Gin framewo
 
 | Skill | Description | Install |
 |---|---|---|
-| **gin-api** | Core REST API — routing, handlers, binding, error handling, project structure | `npx skills add henriqueatila/gin-best-practices --skill gin-api` |
-| **gin-auth** | JWT authentication, login handler, RBAC middleware, token lifecycle | `npx skills add henriqueatila/gin-best-practices --skill gin-auth` |
-| **gin-database** | PostgreSQL with GORM or sqlx, repository pattern, migrations, connection pooling | `npx skills add henriqueatila/gin-best-practices --skill gin-database` |
-| **gin-testing** | Unit tests with httptest, integration tests with testcontainers, e2e flows | `npx skills add henriqueatila/gin-best-practices --skill gin-testing` |
-| **gin-deploy** | Multi-stage Dockerfile, docker-compose, Kubernetes manifests, CI/CD pipelines | `npx skills add henriqueatila/gin-best-practices --skill gin-deploy` |
+| **gin-api** | Core REST API — routing, handlers, binding, error handling, project structure | `npx skills add henriqueatila/golang-gin-best-practices --skill gin-api` |
+| **gin-auth** | JWT authentication, login handler, RBAC middleware, token lifecycle | `npx skills add henriqueatila/golang-gin-best-practices --skill gin-auth` |
+| **gin-database** | PostgreSQL with GORM or sqlx, repository pattern, migrations, connection pooling | `npx skills add henriqueatila/golang-gin-best-practices --skill gin-database` |
+| **gin-testing** | Unit tests with httptest, integration tests with testcontainers, e2e flows | `npx skills add henriqueatila/golang-gin-best-practices --skill gin-testing` |
+| **gin-deploy** | Multi-stage Dockerfile, docker-compose, Kubernetes manifests, CI/CD pipelines | `npx skills add henriqueatila/golang-gin-best-practices --skill gin-deploy` |
 
 ---
 
@@ -24,30 +24,30 @@ Agent Skills for building production-grade REST APIs with Go and the Gin framewo
 ### Install all skills
 
 ```bash
-npx skills add henriqueatila/gin-best-practices --skill gin-api
-npx skills add henriqueatila/gin-best-practices --skill gin-auth
-npx skills add henriqueatila/gin-best-practices --skill gin-database
-npx skills add henriqueatila/gin-best-practices --skill gin-testing
-npx skills add henriqueatila/gin-best-practices --skill gin-deploy
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-api
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-auth
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-database
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-testing
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-deploy
 ```
 
 ### Install individual skills
 
 ```bash
 # Core API only
-npx skills add henriqueatila/gin-best-practices --skill gin-api
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-api
 
 # Add authentication to an existing project
-npx skills add henriqueatila/gin-best-practices --skill gin-auth
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-auth
 
 # Add database layer
-npx skills add henriqueatila/gin-best-practices --skill gin-database
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-database
 
 # Add testing infrastructure
-npx skills add henriqueatila/gin-best-practices --skill gin-testing
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-testing
 
 # Add deployment configuration
-npx skills add henriqueatila/gin-best-practices --skill gin-deploy
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-deploy
 ```
 
 ### Manual installation
@@ -56,7 +56,7 @@ Download the zip package for any skill from the `skills/` directory and extract 
 
 ```bash
 # Example: download and extract gin-api
-curl -L https://github.com/henriqueatila/gin-best-practices/raw/main/skills/gin-api.zip -o gin-api.zip
+curl -L https://github.com/henriqueatila/golang-gin-best-practices/raw/main/skills/gin-api.zip -o gin-api.zip
 unzip gin-api.zip -d .claude/skills/gin-api/
 ```
 
@@ -90,7 +90,7 @@ You can start with `gin-api` and add skills incrementally as your project grows.
 ## Directory Structure
 
 ```
-gin-best-practices/
+golang-gin-best-practices/
 ├── README.md
 ├── CLAUDE.md                        # Agent guidance for this repo
 ├── AGENTS.md                        # Multi-agent guidance

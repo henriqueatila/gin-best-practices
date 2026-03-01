@@ -16,5 +16,5 @@ Containerization and deployment for Go Gin APIs.
 ## Install
 
 ```bash
-npx skills add henriqueatila/gin-best-practices --skill gin-deploy
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-deploy
 ```

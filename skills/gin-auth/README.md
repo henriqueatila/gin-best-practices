@@ -15,5 +15,5 @@ JWT authentication and authorization for Go Gin APIs.
 ## Install
 
 ```bash
-npx skills add henriqueatila/gin-best-practices --skill gin-auth
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-auth
 ```

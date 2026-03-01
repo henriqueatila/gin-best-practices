@@ -16,5 +16,5 @@ Testing patterns for Go Gin REST APIs.
 ## Install
 
 ```bash
-npx skills add henriqueatila/gin-best-practices --skill gin-testing
+npx skills add henriqueatila/golang-gin-best-practices --skill gin-testing
 ```

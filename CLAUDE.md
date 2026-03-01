@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Agent guidance for the `gin-best-practices` repository.
+Agent guidance for the `golang-gin-best-practices` repository.
 
 ## What This Repo Is
 
@@ -9,7 +9,7 @@ A collection of 5 Agent Skills for building production-grade REST APIs with Go a
 ## Repository Structure
 
 ```
-gin-best-practices/
+golang-gin-best-practices/
 ├── skills/
 │   ├── gin-api/          # Core REST API — routing, handlers, binding, errors
 │   ├── gin-auth/         # JWT auth, RBAC middleware, token lifecycle

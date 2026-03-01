@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Multi-agent guidance for the `gin-best-practices` repository.
+Multi-agent guidance for the `golang-gin-best-practices` repository.
 
 ## Repository Overview
 
