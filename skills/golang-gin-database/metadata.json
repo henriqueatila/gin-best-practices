@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "organization": "henriqueatila",
   "date": "March 2026",
   "abstract": "PostgreSQL integration for Go Gin APIs using GORM and sqlx — repository pattern, connection pooling, transactions, migrations, and dependency injection.",

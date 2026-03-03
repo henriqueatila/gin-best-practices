@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "organization": "henriqueatila",
   "date": "March 2026",
   "abstract": "Testing patterns for Go Gin REST APIs — unit tests with httptest, table-driven tests, mock repositories, integration tests with testcontainers, and e2e test flows.",
