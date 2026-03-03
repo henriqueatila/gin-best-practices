@@ -22,15 +22,10 @@ Agent Skills for building production-grade REST APIs with Go and the Gin framewo
 
 ## Quick Start
 
-### Install all skills
+### Install all skills at once
 
 ```bash
-npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-api
-npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-auth
-npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-database
-npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-testing
-npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-deploy
-npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-swagger
+npx skills add henriqueatila/golang-gin-best-practices
 ```
 
 ### Install individual skills
