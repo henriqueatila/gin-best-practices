@@ -107,6 +107,7 @@ import (
     "encoding/json"
     "net/http"
     "net/http/httptest"
+    "strings"
     "testing"
 
     "myapp/internal/domain"
@@ -429,7 +430,16 @@ mockgen -source=internal/domain/user.go -destination=internal/testutil/mocks/moc
 
 ```go
 // Using generated mock
-import "myapp/internal/testutil/mocks"
+import (
+    "context"
+    "log/slog"
+    "testing"
+
+    "go.uber.org/mock/gomock"
+    "myapp/internal/domain"
+    "myapp/internal/service"
+    "myapp/internal/testutil/mocks"
+)
 
 func TestWithGoMock(t *testing.T) {
     ctrl := gomock.NewController(t)

@@ -107,6 +107,8 @@ func main() {
 
 ## Domain Model
 
+> **Architecture note:** In clean architecture, domain entities should not carry `json` or `binding` tags. Use separate request/response DTOs in the delivery layer. See **golang-gin-clean-arch** Golden Rule 4.
+
 ```go
 // internal/domain/user.go
 package domain
@@ -132,6 +134,8 @@ type CreateUserRequest struct {
 ```
 
 ## Thin Handler Pattern
+
+> **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
 
 Handlers bind input, call a service, and format the response. No business logic.
 
@@ -287,6 +291,8 @@ dst := filepath.Join("uploads", safeName)
 
 ## Centralized Error Handling
 
+> **Note:** This `AppError` is a simplified version for this skill's examples. For the canonical domain error pattern with `Detail` field and 5xx guard, see the **golang-gin-clean-arch** skill.
+
 ```go
 // internal/domain/errors.go
 package domain
@@ -370,6 +376,7 @@ Load these when you need deeper detail:
 - For wiring repositories into services and handlers: see the **golang-gin-database** skill
 - For testing handlers and services: see the **golang-gin-testing** skill
 - For Dockerizing this project structure: see the **golang-gin-deploy** skill
+- **golang-gin-clean-arch** → Architecture: 4-layer separation, dependency injection, error propagation, input sanitization
 
 ## Official Docs
 

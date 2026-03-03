@@ -440,7 +440,6 @@ Test the full stack — real router with real database — by calling `router.Se
 package handler_test
 
 import (
-    "context"
     "encoding/json"
     "log/slog"
     "net/http"

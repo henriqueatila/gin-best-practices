@@ -18,6 +18,8 @@ This file covers the full domain error system for Gin APIs: AppError struct, sen
 
 `AppError` carries an HTTP status code alongside the message, so the transport layer never decides status codes — the domain does.
 
+> **Note:** This `AppError` is a simplified version for this skill's examples. For the canonical domain error pattern with `Detail` field and 5xx guard, see the **golang-gin-clean-arch** skill.
+
 ```go
 // internal/domain/errors.go
 package domain

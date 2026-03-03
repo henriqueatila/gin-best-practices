@@ -228,6 +228,7 @@ Table-driven tests cover all request variants (valid, invalid, edge cases) in on
 package handler_test
 
 import (
+    "context"
     "net/http"
     "testing"
 
@@ -397,6 +398,7 @@ Load these when you need deeper detail:
 - For handler and service implementations being tested: see the **golang-gin-api** skill
 - For `UserRepository` interface and GORM/sqlx implementations: see the **golang-gin-database** skill
 - For JWT middleware and auth handler test patterns: see the **golang-gin-auth** skill
+- **golang-gin-clean-arch** → Architecture: mock strategy (boundaries only), testing by layer, test fixtures
 
 ## Official Docs
 

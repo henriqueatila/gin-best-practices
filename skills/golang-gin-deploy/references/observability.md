@@ -244,6 +244,9 @@ A span's status is `Unset` by default — not OK, not Error. Set it explicitly s
 ```go
 // internal/service/order_service.go
 import (
+	"context"
+	"fmt"
+
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )

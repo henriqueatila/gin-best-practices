@@ -350,6 +350,7 @@ Load these when you need deeper detail:
 - For handler patterns (ShouldBindJSON, error responses, route groups): see the **golang-gin-api** skill
 - For `UserRepository` interface and `GetByEmail` implementation: see the **golang-gin-database** skill
 - For testing JWT middleware and auth handlers: see the **golang-gin-testing** skill
+- **golang-gin-clean-arch** → Architecture: where auth middleware fits (delivery layer only), DI patterns for auth services
 
 ## Official Docs
 

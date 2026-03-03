@@ -428,7 +428,6 @@ Replace the IP key with a user ID from JWT claims or an `X-API-Key` header. This
 package middleware
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -599,6 +598,7 @@ import (
 	"strings"
 
 	"golang.org/x/time/rate"
+	"myapp/pkg/middleware"
 )
 
 func LoadTiers() map[string]middleware.TierConfig {

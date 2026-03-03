@@ -319,6 +319,7 @@ Load these when you need deeper detail:
 - For project structure this Dockerfile builds (`cmd/api/main.go`): see the **golang-gin-api** skill
 - For health check handler used by K8s probes: see the **golang-gin-api** skill
 - For running migrations in Docker (migrate service): see the **golang-gin-database** skill (`references/migrations.md`)
+- **golang-gin-clean-arch** → Architecture: project structure, graceful shutdown, configuration patterns
 
 ## Official Docs
 

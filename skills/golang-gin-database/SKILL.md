@@ -286,6 +286,7 @@ Load these for deeper detail:
 - For testing repositories with a real database: see the **golang-gin-testing** skill (integration tests)
 - For running migrations in Docker containers: see the **golang-gin-deploy** skill
 - For user authentication using the UserRepository: see the **golang-gin-auth** skill
+- **golang-gin-clean-arch** → Architecture: repository pattern, domain error wrapping, transaction patterns
 
 ## Official Docs
 

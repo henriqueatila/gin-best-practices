@@ -108,7 +108,10 @@ r.GET("/swagger/*any", ginSwagger.WrapHandler(
 Override spec values at runtime for multi-environment deploys:
 
 ```go
-import "myapp/docs"
+import (
+    "os"
+    "myapp/docs"
+)
 
 func main() {
     docs.SwaggerInfo.Host     = os.Getenv("API_HOST") // e.g. "api.prod.example.com"

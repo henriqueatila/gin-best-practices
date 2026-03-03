@@ -75,9 +75,7 @@ The simplest handler: upgrade the connection, read messages in a loop, write eac
 package ws
 
 import (
-    "errors"
     "log/slog"
-    "net/http"
 
     "github.com/gin-gonic/gin"
     "github.com/gorilla/websocket"
