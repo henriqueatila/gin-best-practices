@@ -157,6 +157,8 @@ func handleServiceError(c *gin.Context, err error, logger *slog.Logger) {
 
 Handler usage:
 
+> **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
+
 ```go
 func (h *UserHandler) GetByID(c *gin.Context) {
     type uriParams struct {

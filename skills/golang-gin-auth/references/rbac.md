@@ -328,6 +328,8 @@ func (h *PostHandler) GetByID(c *gin.Context) {
 
 ## Resource-Level Authorization
 
+> **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
+
 Verify the authenticated user owns or has access to the specific resource — not just the right role.
 
 ```go

@@ -182,6 +182,8 @@ func Auth(cfg auth.TokenConfig, logger *slog.Logger) gin.HandlerFunc {
 
 ## Login Handler
 
+> **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
+
 Validates credentials via `UserRepository`, then returns both tokens. Thin handler — no business logic beyond orchestration.
 
 ```go

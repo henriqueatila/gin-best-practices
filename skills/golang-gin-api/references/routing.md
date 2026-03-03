@@ -119,6 +119,8 @@ r.GET("/api/users", listUsers)
 
 ## Path Parameter Patterns
 
+> **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
+
 Use `ShouldBindURI` with a struct to bind multiple path parameters at once.
 
 ```go

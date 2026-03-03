@@ -182,6 +182,8 @@ func (h *UserHandler) List(c *gin.Context) { ... }
 
 ## Model Documentation
 
+> **Architecture note:** In clean architecture, domain entities should not carry `json` or `binding` tags. Use separate request/response DTOs in the delivery layer. See **golang-gin-clean-arch** Golden Rule 4. The tags here are shown for Swagger annotation purposes — in a clean-arch project, apply them to DTO structs, not domain entities.
+
 Add `example`, `format`, and constraint tags to struct fields for rich Swagger docs:
 
 ```go

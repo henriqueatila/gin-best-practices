@@ -25,6 +25,8 @@ Integrate PostgreSQL with Gin APIs using the repository pattern. Keeps database 
 
 **Define the interface in the domain layer; implement it in the repository layer.** This inverts the dependency: services depend on an abstraction, not a concrete database library.
 
+> **Architecture note:** In clean architecture, domain entities should not carry `json` or `binding` tags. Use separate request/response DTOs in the delivery layer. See **golang-gin-clean-arch** Golden Rule 4.
+
 ```go
 // internal/domain/user.go
 package domain

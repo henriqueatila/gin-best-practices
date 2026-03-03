@@ -83,6 +83,8 @@ type RefreshClaims struct {
 
 ## Token Refresh Endpoint
 
+> **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
+
 Exchange a valid refresh token for a new access token. Do not rotate the refresh token on every call (causes logout on parallel requests); rotate on logout or suspicious activity.
 
 ```go
