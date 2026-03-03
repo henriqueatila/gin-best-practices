@@ -15,6 +15,8 @@ Full reference for swaggo/swag annotations. Covers all `@Param` types, response 
 9. [Response Headers](#9-response-headers)
 10. [Model Renaming](#10-model-renaming)
 11. [Deprecating Endpoints](#11-deprecating-endpoints)
+12. [Tag Metadata](#12-tag-metadata)
+13. [Custom Extensions](#13-custom-extensions)
 
 ---
 
@@ -67,6 +69,13 @@ Place once in `cmd/api/main.go`, directly before `main()`:
 
 // @externalDocs.description  Full API documentation
 // @externalDocs.url          https://docs.example.com
+
+// Tag metadata (shows description in Swagger UI sidebar)
+// @tag.name         users
+// @tag.description  Operations on user accounts
+
+// Custom extensions (vendor-specific metadata)
+// @x-custom-key     {"env": "production"}
 
 // Security definitions (see Section 5)
 // @securityDefinitions.apikey  BearerAuth
@@ -256,7 +265,7 @@ When multiple codes share the same response type:
 // @Security  BearerAuth
 // @Security  ApiKeyAuth
 
-// Either accepted (OR logic) — use comma:
+// Either accepted (OR logic) — use double pipe:
 // @Security  BearerAuth || ApiKeyAuth
 ```
 
@@ -418,3 +427,55 @@ func (h *UserHandler) GetUserV1(c *gin.Context) { ... }
 ```
 
 The endpoint appears with a strikethrough in Swagger UI.
+
+---
+
+## 12. Tag Metadata
+
+Add descriptions to tags in the Swagger UI sidebar. Place in the general API info block:
+
+```go
+// @tag.name         users
+// @tag.description  Operations on user accounts
+
+// @tag.name         auth
+// @tag.description  Authentication and token management
+
+// @tag.name         admin
+// @tag.description  Administrative operations (requires admin role)
+```
+
+Tags without metadata still appear in Swagger UI, but without descriptions.
+
+---
+
+## 13. Custom Extensions
+
+Use `@x-` prefix for vendor-specific or custom metadata. Values are JSON:
+
+### General API Extensions
+
+```go
+// @x-logo  {"url": "https://example.com/logo.png", "altText": "API Logo"}
+```
+
+### Operation Extensions
+
+```go
+// ListUsers godoc
+//
+// @Summary      List users
+// @x-codeSamples  [{"lang": "curl", "source": "curl -H 'Authorization: Bearer {token}' https://api.example.com/users"}]
+// @Router       /users [get]
+func (h *UserHandler) List(c *gin.Context) { ... }
+```
+
+### Field Extensions
+
+```go
+type User struct {
+    Role string `json:"role" x-order:"1"`
+}
+```
+
+Custom extensions appear in the raw `swagger.json` output and are consumed by tools that understand them (e.g., Redoc uses `x-logo`, `x-codeSamples`).

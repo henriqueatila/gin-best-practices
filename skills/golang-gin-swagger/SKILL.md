@@ -98,6 +98,8 @@ r.GET("/swagger/*any", ginSwagger.WrapHandler(
     ginSwagger.DeepLinking(true),
     ginSwagger.DefaultModelsExpandDepth(1),    // -1 hides models section
     ginSwagger.PersistAuthorization(true),     // retains Bearer token across reloads
+    ginSwagger.DefaultModelExpandDepth(1),    // expand depth for example section
+    ginSwagger.DefaultModelRendering("example"), // "example"|"model"
 ))
 ```
 
