@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "organization": "henriqueatila",
   "date": "March 2026",
   "abstract": "Core REST API patterns for the Go Gin framework — routing, handlers, request binding/validation, middleware chains, error handling, and layered project structure.",
