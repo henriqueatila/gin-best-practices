@@ -74,9 +74,9 @@ import (
     "time"
 
     "github.com/testcontainers/testcontainers-go"
-    "github.com/testcontainers/testcontainers-go/modules/postgres"
+    tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
     "github.com/testcontainers/testcontainers-go/wait"
-    "gorm.io/driver/postgres"
+    gormpostgres "gorm.io/driver/postgres"
     "gorm.io/gorm"
 
     "myapp/internal/repository"
@@ -91,11 +91,11 @@ func TestMain(m *testing.M) {
     ctx := context.Background()
 
     // Start PostgreSQL container
-    pgContainer, err := postgres.RunContainer(ctx,
+    pgContainer, err := tcpostgres.RunContainer(ctx,
         testcontainers.WithImage("postgres:16-alpine"),
-        postgres.WithDatabase("testdb"),
-        postgres.WithUsername("testuser"),
-        postgres.WithPassword("testpass"),
+        tcpostgres.WithDatabase("testdb"),
+        tcpostgres.WithUsername("testuser"),
+        tcpostgres.WithPassword("testpass"),
         testcontainers.WithWaitStrategy(
             wait.ForLog("database system is ready to accept connections").
                 WithOccurrence(2).
@@ -115,7 +115,7 @@ func TestMain(m *testing.M) {
         host, port.Port())
 
     // Connect with GORM
-    db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+    db, err := gorm.Open(gormpostgres.Open(dsn), &gorm.Config{})
     if err != nil {
         slog.Error("failed to connect to test db", "error", err)
         cleanupContainer(ctx)

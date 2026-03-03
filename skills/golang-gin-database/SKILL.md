@@ -102,7 +102,7 @@ func NewGORMDB(cfg Config, logger *slog.Logger) (*gorm.DB, error) {
     sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)    // e.g. 5
     sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime) // e.g. 5*time.Minute
 
-    logger.Info("database connected", "dsn_host", extractHost(cfg.DSN))
+    logger.Info("database connected")
     return db, nil
 }
 ```

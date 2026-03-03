@@ -459,9 +459,10 @@ func JWTSubjectExtractor(c *gin.Context) string {
 	claims := jwt.MapClaims{}
 	parser := jwt.NewParser()
 	token, _, err := parser.ParseUnverified(tokenStr, claims)
-	if err != nil || !token.Valid {
+	if err != nil {
 		return ""
 	}
+	_ = token // ParseUnverified skips validation — token.Valid is always false
 	sub, err := claims.GetSubject()
 	if err != nil || sub == "" {
 		return ""

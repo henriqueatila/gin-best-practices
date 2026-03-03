@@ -548,10 +548,6 @@ func NewUserRepository(db *gorm.DB) domain.UserRepository {
     return &gormUserRepository{db: db}
 }
 
-func (r *gormUserRepository) db(ctx context.Context) *gorm.DB {
-    return r.db.WithContext(ctx)
-}
-
 func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) error {
     m := fromDomain(user)
     if err := r.db.WithContext(ctx).Create(m).Error; err != nil {

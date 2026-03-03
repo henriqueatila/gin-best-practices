@@ -153,7 +153,7 @@ func setupRouter(serviceName string, logger *slog.Logger) *gin.Engine {
 	r.Use(otelgin.Middleware(serviceName))
 
 	// Recovery and logging after otelgin so they run within the trace span
-	r.Use(gin.Recovery())
+	r.Use(middleware.Recovery(logger))
 	r.Use(requestLogger(logger))
 
 	return r

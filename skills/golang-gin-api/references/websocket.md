@@ -544,7 +544,7 @@ const (
 // Envelope is the wire format for all WebSocket messages.
 type Envelope struct {
     Type    MessageType `json:"type"`
-    Payload interface{} `json:"payload"`
+    Payload any `json:"payload"`
     SentAt  time.Time   `json:"sent_at"`
 }
 
@@ -555,13 +555,13 @@ type ChatPayload struct {
 }
 
 // readJSON reads one message from the connection into dst.
-func readJSON(conn *websocket.Conn, dst interface{}) error {
+func readJSON(conn *websocket.Conn, dst any) error {
     conn.SetReadDeadline(time.Now().Add(pongWait))
     return conn.ReadJSON(dst)
 }
 
 // writeJSON writes src to the connection as JSON.
-func writeJSON(conn *websocket.Conn, src interface{}) error {
+func writeJSON(conn *websocket.Conn, src any) error {
     conn.SetWriteDeadline(time.Now().Add(writeWait))
     return conn.WriteJSON(src)
 }
@@ -583,7 +583,7 @@ func handleTypedMessage(conn *websocket.Conn) {
         switch env.Type {
         case MsgChat:
             // Re-encode payload to typed struct for validation
-            // (ReadJSON into interface{} gives map[string]interface{})
+            // (ReadJSON into any gives map[string]any)
             slog.Info("chat message received", "payload", env.Payload)
         default:
             resp := Envelope{
@@ -600,7 +600,7 @@ func handleTypedMessage(conn *websocket.Conn) {
 }
 ```
 
-**Why `interface{}` in `Envelope.Payload`:** The envelope type is fixed, but the payload varies per message type. Unmarshal into `Envelope` first, then use `json.Unmarshal` on the re-encoded payload for strict typing per type:
+**Why `any` in `Envelope.Payload`:** The envelope type is fixed, but the payload varies per message type. Unmarshal into `Envelope` first, then use `json.Unmarshal` on the re-encoded payload for strict typing per type:
 
 ```go
 import "encoding/json"
