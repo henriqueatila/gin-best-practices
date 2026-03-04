@@ -601,6 +601,183 @@ Access Jaeger UI at `http://localhost:16686` after `docker compose up`.
 
 ---
 
+## Prometheus + Grafana Stack
+
+The existing OTel Collector pipeline exports traces to Jaeger. To also scrape metrics into Prometheus and visualise RED (Rate, Errors, Duration) in Grafana, add a `prometheus` exporter to the collector and bring up Prometheus + Grafana as a compose overlay.
+
+### Updated OTel Collector config
+
+Add the `prometheus` exporter to `otel-collector-config.yml` (already used in the base compose):
+
+```yaml
+# otel-collector-config.yml  — diff from existing file
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  # Expose scraped app metrics on :8889 so Prometheus can pull them
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: gin_app          # prefix: gin_app_http_request_duration_seconds …
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, prometheus]   # added prometheus here
+```
+
+Port 8889 is the app-metrics endpoint; port 8888 remains the collector's own self-metrics.
+
+### Compose overlay: `docker-compose.monitoring.yml`
+
+```yaml
+# docker-compose.monitoring.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      # Anonymous access is fine for local dev — remove in production
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+```
+
+### `prometheus.yml` scrape config
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Collector self-metrics (queue sizes, export errors, etc.)
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
+  # App metrics forwarded by the prometheus exporter in the collector
+  - job_name: gin-app
+    static_configs:
+      - targets: ["otel-collector:8889"]
+```
+
+### Grafana datasource provisioning
+
+```yaml
+# grafana/provisioning/datasources/prometheus.yml
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    # Mark as default so new dashboards pick it up automatically
+    isDefault: true
+    editable: false
+```
+
+### Grafana dashboard provisioning (RED metrics)
+
+```yaml
+# grafana/provisioning/dashboards/dashboards.yml
+apiVersion: 1
+providers:
+  - name: default
+    folder: Gin App
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards
+```
+
+Save the dashboard JSON below as `grafana/provisioning/dashboards/gin-red.json`. It references the three metrics emitted by the existing `MetricsMiddleware`:
+
+```json
+{
+  "title": "Gin RED Metrics",
+  "uid": "gin-red-001",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Request Rate (req/s)",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "rate(gin_app_http_request_duration_seconds_count[1m])",
+        "legendFormat": "{{route}}"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Error Rate (%)",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "rate(gin_app_http_requests_total{status_code=~\"5..\"}[1m]) / rate(gin_app_http_requests_total[1m]) * 100",
+        "legendFormat": "{{route}}"
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "P99 Latency (s)",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8},
+      "targets": [{
+        "expr": "histogram_quantile(0.99, rate(gin_app_http_request_duration_seconds_bucket[5m]))",
+        "legendFormat": "p99 {{route}}"
+      }]
+    }
+  ]
+}
+```
+
+### Running the full stack
+
+```bash
+# Start everything: app + Jaeger + OTel Collector + Prometheus + Grafana
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up
+
+# Verify endpoints
+# Jaeger UI:       http://localhost:16686
+# Prometheus UI:   http://localhost:9090
+# Grafana:         http://localhost:3000  (anonymous viewer)
+# OTel metrics:    http://localhost:8888/metrics  (collector self)
+# App metrics:     http://localhost:8889/metrics  (gin_app_* series)
+```
+
+---
+
 ## Graceful Shutdown
 
 OTel providers buffer telemetry in memory and flush to the exporter in batches. Skipping shutdown on process exit drops the last batch of spans and metrics — losing visibility into the final seconds before shutdown.

@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "organization": "henriqueatila",
+  "date": "March 2026",
+  "abstract": "Pragmatic software architecture for Go Gin APIs — system design, complexity assessment, scalability patterns, API design, cross-cutting concerns, ADRs, tech debt management, and gingo skill orchestration.",
+  "references": [
+    "https://gin-gonic.com/docs/",
+    "https://pkg.go.dev/github.com/gin-gonic/gin",
+    "https://context7.com/websites/gin-gonic_en"
+  ]
+}
