@@ -58,6 +58,7 @@ import (
     "myapp/internal/handler"
     "myapp/internal/service"
     "myapp/internal/repository"
+    "myapp/pkg/auth"       // see gin-auth skill
     "myapp/pkg/middleware"
 )
 
@@ -76,8 +77,10 @@ func main() {
     userRepo := repository.NewUserRepository(db)
     userSvc := service.NewUserService(userRepo)
     userHandler := handler.NewUserHandler(userSvc, logger)
+    authHandler := handler.NewAuthHandler(userSvc, logger)     // see gin-auth skill
+    tokenCfg := auth.TokenConfig{Secret: os.Getenv("JWT_SECRET")} // see gin-auth skill
 
-    registerRoutes(r, userHandler)
+    registerRoutes(r, userHandler, authHandler, tokenCfg, logger)
 
     srv := &http.Server{
         Addr:              ":" + os.Getenv("PORT"),
@@ -316,8 +319,12 @@ type AppError struct {
 func (e *AppError) Error() string { return e.Message }
 func (e *AppError) Unwrap() error  { return e.Err }
 
-// Is enables errors.Is() to match wrapped sentinel errors by value, not pointer identity.
+// Is enables errors.Is() to match AppErrors by code or unwrap to check sentinel errors.
 func (e *AppError) Is(target error) bool {
+    t, ok := target.(*AppError)
+    if ok {
+        return e.Code == t.Code
+    }
     return errors.Is(e.Err, target)
 }
 

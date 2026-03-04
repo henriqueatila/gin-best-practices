@@ -86,7 +86,12 @@ type RefreshClaims struct {
 
 > **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
 
-Exchange a valid refresh token for a new access token. Do not rotate the refresh token on every call (causes logout on parallel requests); rotate on logout or suspicious activity.
+Exchange a valid refresh token for a new access token. Two rotation strategies exist — pick one and document your choice:
+
+- **Option A: Always rotate** — new refresh token on every call. More secure (old token invalidated immediately) but breaks parallel requests that use the same refresh token.
+- **Option B: Rotate past half-lifetime (recommended)** — issue a new refresh token only when the current one is more than halfway through its lifetime. Prevents logout on parallel requests; the window of token reuse is bounded.
+
+The code below implements **Option B**.
 
 ```go
 // internal/handler/auth_handler.go (Refresh method)
@@ -148,19 +153,25 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
         return
     }
 
-    // Also issue a new refresh token (optional rotation strategy)
-    newRefresh, err := auth.GenerateRefreshToken(h.tokenCfg, user.ID)
-    if err != nil {
-        h.logger.Error("failed to generate refresh token on refresh", "error", err, "user_id", user.ID)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
-        return
+    // Option B: Rotate only when the refresh token is past half its lifetime.
+    // This avoids logout on parallel requests while keeping the reuse window bounded.
+    // Switch to always-rotate (Option A) if you can guarantee sequential refresh calls.
+    resp := gin.H{
+        "access_token": accessToken,
+        "expires_in":   int(h.tokenCfg.AccessTTL / time.Second),
+    }
+    halfLife := rc.IssuedAt.Time.Add(h.tokenCfg.RefreshTTL / 2)
+    if time.Now().After(halfLife) {
+        newRefresh, err := auth.GenerateRefreshToken(h.tokenCfg, user.ID)
+        if err != nil {
+            h.logger.Error("failed to rotate refresh token", "error", err, "user_id", user.ID)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+            return
+        }
+        resp["refresh_token"] = newRefresh
     }
 
-    c.JSON(http.StatusOK, gin.H{
-        "access_token":  accessToken,
-        "refresh_token": newRefresh,
-        "expires_in":    int(h.tokenCfg.AccessTTL / time.Second),
-    })
+    c.JSON(http.StatusOK, resp)
 }
 ```
 
@@ -392,14 +403,19 @@ import (
     "time"
 
     "github.com/golang-jwt/jwt/v5"
+    "github.com/google/uuid"
 )
 
 // GenerateAccessTokenRS256 signs with RSA private key.
-func GenerateAccessTokenRS256(privateKey *rsa.PrivateKey, userID, email, role string, ttl time.Duration) (string, error) {
+// Accepts issuer and audience to match the HS256 variant — required for token blacklisting (jti) and multi-service verification.
+func GenerateAccessTokenRS256(privateKey *rsa.PrivateKey, userID, email, role, issuer string, audience []string, ttl time.Duration) (string, error) {
     now := time.Now()
     claims := Claims{
         RegisteredClaims: jwt.RegisteredClaims{
+            ID:        uuid.NewString(),              // jti — required for token blacklisting
             Subject:   userID,
+            Issuer:    issuer,
+            Audience:  jwt.ClaimStrings(audience),
             IssuedAt:  jwt.NewNumericDate(now),
             NotBefore: jwt.NewNumericDate(now),
             ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
@@ -474,6 +490,8 @@ func main() {
         RefreshSecret: []byte(os.Getenv("JWT_REFRESH_SECRET")),
         AccessTTL:     15 * time.Minute,
         RefreshTTL:    7 * 24 * time.Hour,
+        Issuer:        os.Getenv("JWT_ISSUER"),   // e.g. "myapp"
+        Audience:      []string{os.Getenv("JWT_AUDIENCE")}, // e.g. ["api.myapp.com"]
     }
 
     // Redis for token blacklisting

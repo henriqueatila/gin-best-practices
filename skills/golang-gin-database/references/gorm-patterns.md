@@ -164,7 +164,7 @@ Recommended pool settings for most APIs:
 // Create — sets CreatedAt/UpdatedAt automatically
 func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) error {
     m := fromDomain(user)
-    if err := r.db.WithContext(ctx).Create(m).Error; err != nil {
+    if err := r.txFromCtx(ctx).WithContext(ctx).Create(m).Error; err != nil {
         return domain.ErrInternal.New(err)
     }
     user.ID = m.ID // GORM sets the generated UUID back
@@ -176,7 +176,7 @@ func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) erro
 // GetByID — returns domain.ErrNotFound when row is missing
 func (r *gormUserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
     var m UserModel
-    if err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {
+    if err := r.txFromCtx(ctx).WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
             return nil, domain.ErrNotFound.New(err)
         }
@@ -187,7 +187,7 @@ func (r *gormUserRepository) GetByID(ctx context.Context, id string) (*domain.Us
 
 // Update — only updates non-zero fields with Save; use Updates for partial
 func (r *gormUserRepository) Update(ctx context.Context, user *domain.User) error {
-    result := r.db.WithContext(ctx).
+    result := r.txFromCtx(ctx).WithContext(ctx).
         Model(&UserModel{}).
         Where("id = ?", user.ID).
         Updates(map[string]any{
@@ -206,7 +206,7 @@ func (r *gormUserRepository) Update(ctx context.Context, user *domain.User) erro
 
 // Delete — soft delete if DeletedAt is in the model, hard delete otherwise
 func (r *gormUserRepository) Delete(ctx context.Context, id string) error {
-    result := r.db.WithContext(ctx).Delete(&UserModel{}, "id = ?", id)
+    result := r.txFromCtx(ctx).WithContext(ctx).Delete(&UserModel{}, "id = ?", id)
     if result.Error != nil {
         return domain.ErrInternal.New(result.Error)
     }

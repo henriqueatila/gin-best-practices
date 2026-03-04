@@ -126,6 +126,17 @@ func ConnectWithRetry(dsn string, maxRetries int) (*gorm.DB, error) {
             Logger: logger.Default.LogMode(logger.Warn),
         })
         if err == nil {
+            sqlDB, err := db.DB()
+            if err != nil {
+                return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+            }
+            sqlDB.SetMaxOpenConns(25)
+            sqlDB.SetMaxIdleConns(10)
+            sqlDB.SetConnMaxLifetime(5 * time.Minute)
+            sqlDB.SetConnMaxIdleTime(1 * time.Minute)
+            if err := sqlDB.Ping(); err != nil {
+                return nil, fmt.Errorf("database ping failed: %w", err)
+            }
             return db, nil
         }
         backoff := time.Duration(1<<uint(i)) * time.Second
@@ -281,46 +292,7 @@ func (s *userService) RegisterWithProfile(ctx context.Context, req domain.Create
 
 Offset pagination (`LIMIT x OFFSET y`) degrades at large offsets because PostgreSQL must skip rows. **Keyset pagination** is O(log n) via an index seek — preferred for large or fast-growing tables.
 
-```go
-// domain/user.go — extend ListOptions with cursor support
-type CursorOptions struct {
-    Cursor time.Time // value of created_at from the last item on the previous page
-    Limit  int
-}
-
-// internal/repository/user_repository_gorm.go
-func (r *gormUserRepository) ListAfterCursor(ctx context.Context, opts domain.CursorOptions) ([]domain.User, error) {
-    limit := opts.Limit
-    if limit <= 0 || limit > 100 {
-        limit = 20
-    }
-
-    var models []UserModel
-    q := r.txFromCtx(ctx).WithContext(ctx).Order("created_at ASC").Limit(limit)
-    if !opts.Cursor.IsZero() {
-        q = q.Where("created_at > ?", opts.Cursor)
-    }
-    if err := q.Find(&models).Error; err != nil {
-        return nil, domain.ErrInternal.New(err)
-    }
-
-    users := make([]domain.User, len(models))
-    for i, m := range models {
-        users[i] = *m.ToDomain()
-    }
-    return users, nil
-}
-```
-
-**Usage in handler:** Return `created_at` of the last item as `next_cursor`; client sends it back as a query param. No page numbers needed.
-
-| | Offset | Keyset |
-|---|---|---|
-| Performance | O(offset) — slow at depth | O(log n) — index seek |
-| Stability | Drifts if rows inserted/deleted | Stable |
-| Arbitrary jump | Yes | No |
-
-Use offset for small datasets or admin UIs that need page numbers; keyset for feeds, audit logs, and large tables.
+See [Cursor Pagination in GORM Patterns](references/gorm-patterns.md#cursor--keyset-pagination) for implementation.
 
 ## Dependency Injection in main.go
 
