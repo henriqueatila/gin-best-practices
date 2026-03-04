@@ -11,13 +11,14 @@ This file covers GORM-specific patterns for PostgreSQL integration in Gin APIs: 
 3. [CRUD Operations](#crud-operations)
 4. [Soft Deletes](#soft-deletes)
 5. [Scopes](#scopes)
-6. [Preloading Associations](#preloading-associations)
-7. [Raw SQL](#raw-sql)
-8. [Batch Operations](#batch-operations)
-9. [Hooks — Trade-offs](#hooks--trade-offs)
-10. [Error Handling](#error-handling)
-11. [PostgreSQL-Specific Features](#postgresql-specific-features)
-12. [Complete Repository Implementation](#complete-repository-implementation)
+6. [Cursor / Keyset Pagination](#cursor--keyset-pagination)
+7. [Preloading Associations](#preloading-associations)
+8. [Raw SQL](#raw-sql)
+9. [Batch Operations](#batch-operations)
+10. [Hooks — Trade-offs](#hooks--trade-offs)
+11. [Error Handling](#error-handling)
+12. [PostgreSQL-Specific Features](#postgresql-specific-features)
+13. [Complete Repository Implementation](#complete-repository-implementation)
 
 ---
 
@@ -303,6 +304,56 @@ func (r *gormUserRepository) List(ctx context.Context, opts domain.ListOptions) 
 
 ---
 
+## Cursor / Keyset Pagination
+
+Offset pagination (`LIMIT x OFFSET y`) performs an O(n) skip. For large or append-heavy tables, use keyset pagination — a single index seek per page.
+
+```go
+// domain/user.go — add alongside existing ListOptions
+type CursorOptions struct {
+    Cursor time.Time // created_at of last item on previous page; zero = first page
+    Limit  int
+}
+
+// internal/repository/user_repository_gorm.go
+func (r *gormUserRepository) ListAfterCursor(ctx context.Context, opts domain.CursorOptions) ([]domain.User, error) {
+    limit := opts.Limit
+    if limit <= 0 || limit > 100 {
+        limit = 20
+    }
+
+    var models []UserModel
+    q := r.txFromCtx(ctx).WithContext(ctx).Order("created_at ASC").Limit(limit)
+    if !opts.Cursor.IsZero() {
+        q = q.Where("created_at > ?", opts.Cursor)
+    }
+    if err := q.Find(&models).Error; err != nil {
+        return nil, domain.ErrInternal.New(err)
+    }
+
+    users := make([]domain.User, len(models))
+    for i, m := range models {
+        users[i] = *m.ToDomain()
+    }
+    return users, nil
+}
+```
+
+**Index requirement:** `CREATE INDEX idx_users_created_at ON users(created_at ASC);` — the cursor column must be indexed for O(log n) performance.
+
+**Returning the next cursor:** In the handler or service, take `CreatedAt` of the last returned item and encode it (ISO-8601 or Unix timestamp) as `next_cursor` in the response. The client sends it back on the next request.
+
+| | Offset | Keyset |
+|---|---|---|
+| Complexity | Simple | Slightly more work |
+| Performance at depth | O(offset) | O(log n) |
+| Row stability | Drifts on insert/delete | Stable |
+| Arbitrary page jump | Yes | No |
+
+**Recommendation:** Use offset for small tables and admin UIs; keyset for feeds, audit logs, and any table that grows quickly.
+
+---
+
 ## Preloading Associations
 
 ```go
@@ -527,7 +578,35 @@ type UserModel struct {
 
 ## Complete Repository Implementation
 
-Full `UserRepository` satisfying the `domain.UserRepository` interface.
+Full `UserRepository` satisfying the `domain.UserRepository` interface. All methods use `txFromCtx` so they transparently participate in a service-layer transaction when one is present in context.
+
+```go
+// internal/repository/tx.go
+package repository
+
+import (
+    "context"
+
+    "gorm.io/gorm"
+)
+
+type txKey struct{}
+
+// WithTx stores a *gorm.DB transaction in ctx.
+// Call this in the service layer before passing ctx to repositories.
+func WithTx(ctx context.Context, tx *gorm.DB) context.Context {
+    return context.WithValue(ctx, txKey{}, tx)
+}
+
+// txFromCtx returns the transaction stored in ctx, or the repository's default db.
+// Every repository write method should call this instead of using r.db directly.
+func (r *gormUserRepository) txFromCtx(ctx context.Context) *gorm.DB {
+    if tx, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
+        return tx
+    }
+    return r.db
+}
+```
 
 ```go
 // internal/repository/user_repository_gorm.go
@@ -535,7 +614,6 @@ package repository
 
 import (
     "context"
-    "errors"
     "fmt"
     "time"
 
@@ -554,7 +632,7 @@ func NewUserRepository(db *gorm.DB) domain.UserRepository {
 
 func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) error {
     m := fromDomain(user)
-    if err := r.db.WithContext(ctx).Create(m).Error; err != nil {
+    if err := r.txFromCtx(ctx).WithContext(ctx).Create(m).Error; err != nil {
         return mapGORMError(err)
     }
     user.ID = m.ID
@@ -565,7 +643,7 @@ func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) erro
 
 func (r *gormUserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
     var m UserModel
-    if err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {
+    if err := r.txFromCtx(ctx).WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {
         return nil, mapGORMError(err)
     }
     return m.ToDomain(), nil
@@ -573,7 +651,7 @@ func (r *gormUserRepository) GetByID(ctx context.Context, id string) (*domain.Us
 
 func (r *gormUserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
     var m UserModel
-    if err := r.db.WithContext(ctx).First(&m, "email = ?", email).Error; err != nil {
+    if err := r.txFromCtx(ctx).WithContext(ctx).First(&m, "email = ?", email).Error; err != nil {
         return nil, mapGORMError(err)
     }
     return m.ToDomain(), nil
@@ -583,7 +661,7 @@ func (r *gormUserRepository) List(ctx context.Context, opts domain.ListOptions) 
     var models []UserModel
     var total int64
 
-    q := r.db.WithContext(ctx).Model(&UserModel{}).Scopes(ByRole(opts.Role))
+    q := r.txFromCtx(ctx).WithContext(ctx).Model(&UserModel{}).Scopes(ByRole(opts.Role))
 
     if err := q.Count(&total).Error; err != nil {
         return nil, 0, domain.ErrInternal.New(err)
@@ -600,7 +678,7 @@ func (r *gormUserRepository) List(ctx context.Context, opts domain.ListOptions) 
 }
 
 func (r *gormUserRepository) Update(ctx context.Context, user *domain.User) error {
-    result := r.db.WithContext(ctx).
+    result := r.txFromCtx(ctx).WithContext(ctx).
         Model(&UserModel{}).
         Where("id = ?", user.ID).
         Updates(map[string]any{
@@ -618,7 +696,7 @@ func (r *gormUserRepository) Update(ctx context.Context, user *domain.User) erro
 }
 
 func (r *gormUserRepository) Delete(ctx context.Context, id string) error {
-    result := r.db.WithContext(ctx).Delete(&UserModel{}, "id = ?", id)
+    result := r.txFromCtx(ctx).WithContext(ctx).Delete(&UserModel{}, "id = ?", id)
     if result.Error != nil {
         return domain.ErrInternal.New(result.Error)
     }
@@ -626,5 +704,20 @@ func (r *gormUserRepository) Delete(ctx context.Context, id string) error {
         return domain.ErrNotFound.New(fmt.Errorf("user %s not found", id))
     }
     return nil
+}
+```
+
+**Service-layer transaction usage:**
+
+```go
+// internal/service/user_service.go
+func (s *userService) RegisterWithProfile(ctx context.Context, req domain.CreateUserRequest) error {
+    return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+        txCtx := repository.WithTx(ctx, tx)
+        if err := s.userRepo.Create(txCtx, &user); err != nil {
+            return err // automatic rollback
+        }
+        return s.profileRepo.Create(txCtx, &profile)
+    })
 }
 ```

@@ -13,9 +13,11 @@ This file covers Kubernetes deployment for Go Gin APIs: Deployment manifest, Ser
 5. [Horizontal Pod Autoscaler](#horizontal-pod-autoscaler)
 6. [Ingress](#ingress)
 7. [PVC for PostgreSQL](#pvc-for-postgresql)
-8. [Complete Manifests](#complete-manifests)
-9. [Helm Chart Structure](#helm-chart-structure)
-10. [GitHub Actions CI/CD Workflow](#github-actions-cicd-workflow)
+8. [PodDisruptionBudget](#poddisruptionbudget)
+9. [NetworkPolicy](#networkpolicy)
+10. [Complete Manifests](#complete-manifests)
+11. [Helm Chart Structure](#helm-chart-structure)
+12. [GitHub Actions CI/CD Workflow](#github-actions-cicd-workflow)
 
 ---
 
@@ -29,7 +31,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: myapp
-  namespace: default
+  namespace: myapp
   labels:
     app: myapp
     version: "1.0.0"
@@ -149,7 +151,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: myapp
-  namespace: default
+  namespace: myapp
   labels:
     app: myapp
 spec:
@@ -183,7 +185,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: myapp-config
-  namespace: default
+  namespace: myapp
 data:
   PORT: "8080"
   GIN_MODE: "release"
@@ -201,7 +203,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: myapp-secret
-  namespace: default
+  namespace: myapp
 type: Opaque
 # Values must be base64-encoded
 # echo -n 'postgres://user:pass@host:5432/db?sslmode=require' | base64
@@ -228,7 +230,7 @@ kubectl create secret generic myapp-secret \
   --from-literal=database-url="postgres://user:pass@host:5432/db?sslmode=require" \
   --from-literal=jwt-secret="your-jwt-secret" \
   --from-literal=redis-url="redis://redis:6379" \
-  --namespace=default
+  --namespace=myapp
 ```
 
 ---
@@ -319,7 +321,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: myapp
-  namespace: default
+  namespace: myapp
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -369,7 +371,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myapp
-  namespace: default
+  namespace: myapp
   annotations:
     # nginx-ingress specific — adjust for your controller
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
@@ -408,7 +410,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
-  namespace: default
+  namespace: myapp
 spec:
   accessModes:
     - ReadWriteOnce      # single node access — suitable for stateful DB
@@ -422,7 +424,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
-  namespace: default
+  namespace: myapp
 spec:
   serviceName: postgres
   replicas: 1
@@ -479,7 +481,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres
-  namespace: default
+  namespace: myapp
 spec:
   type: ClusterIP
   selector:
@@ -488,6 +490,92 @@ spec:
     - port: 5432
       targetPort: 5432
 ```
+
+---
+
+## PodDisruptionBudget
+
+Ensures at least one pod remains available during voluntary disruptions (node drains, cluster upgrades). Without a PDB, a rolling upgrade or node drain can take all replicas offline simultaneously.
+
+```yaml
+# k8s/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: myapp-pdb
+  namespace: myapp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: myapp
+```
+
+**When to use `minAvailable` vs `maxUnavailable`:**
+
+| Setting | Behavior |
+|---------|----------|
+| `minAvailable: 1` | At least 1 pod stays up — safe for 2+ replicas |
+| `maxUnavailable: 1` | At most 1 pod goes down at a time |
+
+For 2 replicas, `minAvailable: 1` and `maxUnavailable: 1` are equivalent. With 3+ replicas, `minAvailable: 2` is more conservative.
+
+**Critical:** PDB only protects against *voluntary* disruptions (kubectl drain, cluster upgrades). It does not prevent crashes from OOMKill or node failures.
+
+---
+
+## NetworkPolicy
+
+Restricts which pods can send traffic to the application. Without a NetworkPolicy, any pod in the cluster can reach the app on port 8080.
+
+```yaml
+# k8s/netpol.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: myapp-netpol
+  namespace: myapp
+spec:
+  podSelector:
+    matchLabels:
+      app: myapp
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - port: 8080
+```
+
+This policy allows inbound traffic only from the `ingress-nginx` namespace (the Ingress controller). All other ingress is denied by default once any NetworkPolicy selects the pod.
+
+**Label the ingress-nginx namespace if not already done:**
+
+```bash
+kubectl label namespace ingress-nginx name=ingress-nginx
+```
+
+**Extend to allow inter-service communication:**
+
+```yaml
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - port: 8080
+    - from:
+        - podSelector:
+            matchLabels:
+              app: internal-service   # allow calls from a specific internal service
+      ports:
+        - port: 8080
+```
+
+**Note:** NetworkPolicy requires a CNI plugin that supports it (Calico, Cilium, Weave). Default GKE, EKS, and AKS clusters support NetworkPolicy when enabled at cluster creation.
 
 ---
 
@@ -526,6 +614,8 @@ k8s/
 ├── service.yaml
 ├── ingress.yaml
 ├── hpa.yaml
+├── pdb.yaml             # PodDisruptionBudget
+├── netpol.yaml          # NetworkPolicy
 ├── migrate-job.yaml     # run before deploying new version
 └── postgres/            # only if self-hosting postgres
     ├── statefulset.yaml
@@ -545,7 +635,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: db-migrate-v1-0-0   # replace with your version tag (e.g. db-migrate-v1-2-3)
-  namespace: default
+  namespace: myapp
 spec:
   backoffLimit: 3
   template:
@@ -745,6 +835,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
   migrate:
     needs: build
     runs-on: ubuntu-latest
@@ -785,16 +882,16 @@ jobs:
         run: |
           kubectl set image deployment/myapp \
             myapp=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
-            --namespace=default
+            --namespace=myapp
 
           kubectl rollout status deployment/myapp \
-            --namespace=default \
+            --namespace=myapp \
             --timeout=5m
 
       - name: Verify deployment
         run: |
-          kubectl get pods -l app=myapp --namespace=default
-          kubectl get deployment myapp --namespace=default
+          kubectl get pods -l app=myapp --namespace=myapp
+          kubectl get deployment myapp --namespace=myapp
 ```
 
 **Required GitHub secrets:** `DATABASE_URL` (PostgreSQL connection string for migrations), `KUBECONFIG` (base64-encoded kubeconfig for cluster access).

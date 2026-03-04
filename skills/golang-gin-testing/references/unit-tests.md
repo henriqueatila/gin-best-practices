@@ -17,6 +17,9 @@ All examples use the same `User` domain model and `AppError` pattern from **gola
 9. [Testing Middleware in Isolation](#testing-middleware-in-isolation)
 10. [Benchmark Tests](#benchmark-tests)
 11. [Fuzz Tests](#fuzz-tests)
+12. [Golden File / Snapshot Testing](#golden-file--snapshot-testing)
+13. [Test Organization](#test-organization)
+14. [Testify as an Alternative](#testify-as-an-alternative)
 
 ---
 
@@ -880,3 +883,133 @@ func FuzzUserHandler_Create(f *testing.F) {
 - The fuzz function must not have non-deterministic behavior (no random, no time)
 - Run in CI with `-fuzz=` omitted (seed corpus only) — fuzzing itself runs locally or on dedicated infrastructure
 - Found crash inputs are saved to `testdata/fuzz/FuzzX/` automatically
+
+---
+
+## Golden File / Snapshot Testing
+
+Golden files capture the expected output of a function as a file on disk. On subsequent runs the output is compared to the stored file. Useful for JSON responses, rendered templates, or any output too verbose to inline.
+
+```go
+// internal/handler/user_handler_golden_test.go
+package handler_test
+
+import (
+    "encoding/json"
+    "flag"
+    "os"
+    "path/filepath"
+    "testing"
+
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+    "myapp/internal/domain"
+)
+
+// Run with -update to regenerate golden files:
+//   go test ./internal/handler/... -update
+var update = flag.Bool("update", false, "update golden files")
+
+func TestUserResponse_Golden(t *testing.T) {
+    user := domain.User{ID: "test-id", Email: "test@example.com", Name: "Test User"}
+    body, err := json.MarshalIndent(user, "", "  ")
+    require.NoError(t, err)
+
+    golden := filepath.Join("testdata", t.Name()+".golden")
+    if *update {
+        os.MkdirAll("testdata", 0o755)
+        os.WriteFile(golden, body, 0o644)
+    }
+    expected, err := os.ReadFile(golden)
+    require.NoError(t, err)
+    assert.JSONEq(t, string(expected), string(body))
+}
+```
+
+**How it works:**
+
+1. First run: `go test ./... -update` writes `testdata/TestUserResponse_Golden.golden`
+2. Subsequent runs compare current output to the stored file
+3. Commit golden files to source control — diffs surface unintended response changes
+4. When the response shape intentionally changes, re-run with `-update` and commit the new file
+
+Golden files live in `testdata/` next to the test file. The `testdata/` directory is ignored by the Go build toolchain but committed to git.
+
+---
+
+## Test Organization
+
+Go supports two complementary test styles in the same package directory:
+
+### Same-package tests (white-box)
+
+```go
+// File: internal/service/user_service_test.go
+package service  // same package — can access unexported identifiers
+```
+
+Use for: verifying internal state, unexported helper functions, implementation details that should not be part of the public API.
+
+### External-package tests (black-box)
+
+```go
+// File: internal/handler/user_handler_test.go
+package handler_test  // _test suffix — only exported API visible
+```
+
+Use for: handlers, middleware, repositories. Tests the public contract; prevents accidental coupling to internals.
+
+**Rule of thumb:** handlers and services use `package X_test` (black-box). Internal utility packages may use `package X` (white-box) when testing unexported logic.
+
+### Build tags for integration tests
+
+```go
+//go:build integration
+
+// Place at the top of every integration test file, before the package declaration.
+// Excluded from: go test ./...
+// Included in:   go test -tags=integration ./...
+```
+
+Use `//go:build integration` for tests that require Docker/network. Use `//go:build e2e` for full end-to-end tests. This keeps `go test ./...` fast for everyday development.
+
+---
+
+## Testify as an Alternative
+
+The standard library `testing` package is sufficient for most cases. In enterprise codebases, [testify](https://github.com/testify-community/testify) (`github.com/stretchr/testify`) is widely adopted for its readable assertions and reduced boilerplate.
+
+```bash
+go get github.com/stretchr/testify
+```
+
+**Comparison:**
+
+```go
+// Standard library
+if got.Email != "alice@example.com" {
+    t.Errorf("want email 'alice@example.com', got %q", got.Email)
+}
+if err != nil {
+    t.Fatalf("unexpected error: %v", err)
+}
+
+// testify/assert — continues test on failure
+assert.Equal(t, "alice@example.com", got.Email)
+assert.NoError(t, err)
+
+// testify/require — stops test immediately on failure (equivalent to t.Fatalf)
+require.NoError(t, err)
+require.Equal(t, "alice@example.com", got.Email)
+```
+
+**When to use each:**
+
+| Package | Behavior | Use when |
+|---|---|---|
+| `assert` | non-fatal, test continues | checking multiple independent fields |
+| `require` | fatal, stops immediately | precondition must hold for rest of test to make sense |
+
+`require.NoError(t, err)` before accessing the result is the most common pattern — no point checking `got.Email` if `err != nil` crashed the response.
+
+**Trade-off:** testify adds a dependency but significantly reduces assertion noise in large test suites. The standard library is always available with zero dependencies.

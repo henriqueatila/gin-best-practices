@@ -6,12 +6,13 @@ This file covers Gin middleware patterns: signature and chain execution order, C
 
 1. [Middleware Signature & Chain Execution](#middleware-signature--chain-execution)
 2. [CORS Configuration](#cors-configuration)
-3. [Request Logging with log/slog](#request-logging-with-logslog)
-4. [Rate Limiting](#rate-limiting)
-5. [Request ID Middleware](#request-id-middleware)
-6. [Recovery Middleware](#recovery-middleware)
-7. [Timeout Middleware](#timeout-middleware)
-8. [Custom Middleware Template](#custom-middleware-template)
+3. [Security Headers Middleware](#security-headers-middleware)
+4. [Request Logging with log/slog](#request-logging-with-logslog)
+5. [Rate Limiting](#rate-limiting)
+6. [Request ID Middleware](#request-id-middleware)
+7. [Recovery Middleware](#recovery-middleware)
+8. [Timeout Middleware](#timeout-middleware)
+9. [Custom Middleware Template](#custom-middleware-template)
 
 ---
 
@@ -122,6 +123,50 @@ r.Use(middleware.Recovery(logger))
 
 ---
 
+## Security Headers Middleware
+
+Set HTTP security headers on every response. Register early in the chain so they are always applied, even when a later middleware aborts the request.
+
+```go
+// pkg/middleware/security_headers.go
+package middleware
+
+import "github.com/gin-gonic/gin"
+
+// SecurityHeaders sets recommended HTTP security headers on every response.
+// Register before route-specific middleware so headers are always present.
+func SecurityHeaders() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        c.Header("X-Content-Type-Options", "nosniff")
+        c.Header("X-Frame-Options", "DENY")
+        c.Header("X-XSS-Protection", "0") // disabled — CSP supersedes it; non-zero triggers bugs in old browsers
+        c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+        c.Header("Content-Security-Policy", "default-src 'self'")
+        c.Header("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+        c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        c.Next()
+    }
+}
+```
+
+Register in main.go after CORS and before route groups:
+
+```go
+r := gin.New()
+r.Use(middleware.CORS())
+r.Use(middleware.SecurityHeaders())
+r.Use(middleware.RequestID())
+r.Use(middleware.Logger(logger))
+r.Use(middleware.Recovery(logger))
+```
+
+**Header notes:**
+- `X-XSS-Protection: 0` — disables the legacy XSS auditor; `Content-Security-Policy` is the correct control.
+- `Strict-Transport-Security` — only effective over HTTPS; set `preload` after submitting your domain to the HSTS preload list.
+- `Content-Security-Policy` — `default-src 'self'` is a safe starting point; tighten per route group if the API serves HTML or allows CDN assets.
+
+---
+
 ## Request Logging with log/slog
 
 Log each request with structured fields: method, path, status, duration, request ID.
@@ -222,13 +267,13 @@ const RequestIDHeader = "X-Request-ID"
 // Reuses the incoming X-Request-ID header if present (for distributed tracing).
 func RequestID() gin.HandlerFunc {
     return func(c *gin.Context) {
-        requestID := c.GetHeader(RequestIDHeader)
-        if requestID == "" {
-            requestID = uuid.Must(uuid.NewV7()).String() // UUIDv7: time-sortable, better B-tree index performance
+        id := c.GetHeader(RequestIDHeader)
+        if id == "" {
+            id = uuid.NewString() // UUIDv4 via google/uuid
         }
 
-        c.Set(RequestIDKey, requestID)
-        c.Header(RequestIDHeader, requestID)
+        c.Set(RequestIDKey, id)
+        c.Header(RequestIDHeader, id)
         c.Next()
     }
 }

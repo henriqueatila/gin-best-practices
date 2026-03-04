@@ -11,8 +11,9 @@ All patterns use `github.com/golang-jwt/jwt/v5`. These are architectural recomme
 3. [Token Refresh Endpoint](#token-refresh-endpoint)
 4. [Token Blacklisting (Redis)](#token-blacklisting-redis)
 5. [Storage Recommendations](#storage-recommendations)
-6. [RS256 vs HS256](#rs256-vs-hs256)
-7. [Complete Auth Flow Example](#complete-auth-flow-example)
+6. [CSRF Protection](#csrf-protection)
+7. [RS256 vs HS256](#rs256-vs-hs256)
+8. [Complete Auth Flow Example](#complete-auth-flow-example)
 
 ---
 
@@ -135,7 +136,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
     // Re-fetch user to ensure they are still active
     user, err := h.userRepo.GetByID(c.Request.Context(), rc.Subject)
     if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+        h.logger.Warn("refresh: user lookup failed", "error", err, "subject", rc.Subject)
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
         return
     }
 
@@ -257,18 +259,18 @@ Where the client stores tokens affects the attack surface:
 
 **Recommended:** httpOnly, Secure cookie for refresh token; short-lived access token in memory or Authorization header.
 
-Setting a cookie in Gin:
+Setting a secure cookie in Gin — use `http.SetCookie` directly to set `SameSite`, which `c.SetCookie` does not expose:
 ```go
 // After successful login, set refresh token as httpOnly cookie
-c.SetCookie(
-    "refresh_token",      // name
-    refreshToken,         // value
-    int(7*24*time.Hour/time.Second), // maxAge in seconds
-    "/auth",              // path — restrict to /auth/* endpoints
-    "",                   // domain (empty = current host)
-    true,                 // secure (HTTPS only)
-    true,                 // httpOnly (not accessible by JS)
-)
+http.SetCookie(c.Writer, &http.Cookie{
+    Name:     "refresh_token",
+    Value:    refreshToken,
+    Path:     "/auth",             // restrict to /auth/* endpoints
+    HttpOnly: true,                // not accessible by JavaScript
+    Secure:   true,                // HTTPS only
+    SameSite: http.SameSiteStrictMode, // CSRF mitigation
+    MaxAge:   7 * 24 * 3600,      // 7 days in seconds
+})
 ```
 
 **Reading the cookie in the refresh endpoint:**
@@ -279,6 +281,91 @@ if err != nil {
     return
 }
 ```
+
+---
+
+## CSRF Protection
+
+When using httpOnly cookies for the refresh token, protect state-mutating endpoints from cross-site request forgery. The double-submit cookie pattern: set a non-httpOnly CSRF token cookie on login, require it in a custom header on every mutating request.
+
+```go
+// pkg/middleware/csrf.go
+package middleware
+
+import (
+    "crypto/hmac"
+    "net/http"
+
+    "github.com/gin-gonic/gin"
+)
+
+// CSRFProtection implements the double-submit cookie pattern.
+// Set a "csrf_token" cookie on login (non-httpOnly so JS can read it).
+// The client must echo it back in the "X-CSRF-Token" header on every mutating request.
+func CSRFProtection() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        method := c.Request.Method
+        // Only check state-mutating methods
+        if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
+            c.Next()
+            return
+        }
+
+        csrfHeader := c.GetHeader("X-CSRF-Token")
+        cookieToken, err := c.Cookie("csrf_token")
+        if err != nil || csrfHeader == "" || !hmac.Equal([]byte(csrfHeader), []byte(cookieToken)) {
+            c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid CSRF token"})
+            return
+        }
+        c.Next()
+    }
+}
+```
+
+**Set the CSRF cookie on login** (non-httpOnly so JavaScript can read it):
+
+```go
+// internal/handler/auth_handler.go — after successful login
+import (
+    "crypto/rand"
+    "encoding/hex"
+    "net/http"
+)
+
+func generateCSRFToken() (string, error) {
+    b := make([]byte, 32)
+    if _, err := rand.Read(b); err != nil {
+        return "", err
+    }
+    return hex.EncodeToString(b), nil
+}
+
+// Inside Login, after issuing tokens:
+csrfToken, err := generateCSRFToken()
+if err != nil {
+    h.logger.Error("failed to generate CSRF token", "error", err)
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+    return
+}
+http.SetCookie(c.Writer, &http.Cookie{
+    Name:     "csrf_token",
+    Value:    csrfToken,
+    Path:     "/",
+    Secure:   true,
+    HttpOnly: false, // must be readable by JS to send as header
+    SameSite: http.SameSiteStrictMode,
+    MaxAge:   7 * 24 * 3600,
+})
+```
+
+**Apply the middleware** on all mutating routes:
+
+```go
+api := r.Group("/api/v1")
+api.Use(middleware.CSRFProtection())
+```
+
+> **Note:** CSRF protection is only necessary when using cookies for auth. If you use `Authorization: Bearer` headers exclusively, CSRF is not a risk — browsers do not send custom headers cross-origin without explicit CORS preflight.
 
 ---
 
@@ -309,11 +396,13 @@ import (
 
 // GenerateAccessTokenRS256 signs with RSA private key.
 func GenerateAccessTokenRS256(privateKey *rsa.PrivateKey, userID, email, role string, ttl time.Duration) (string, error) {
+    now := time.Now()
     claims := Claims{
         RegisteredClaims: jwt.RegisteredClaims{
             Subject:   userID,
-            IssuedAt:  jwt.NewNumericDate(time.Now()),
-            ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+            IssuedAt:  jwt.NewNumericDate(now),
+            NotBefore: jwt.NewNumericDate(now),
+            ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
         },
         UserID: userID,
         Email:  email,

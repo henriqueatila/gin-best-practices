@@ -78,7 +78,7 @@ func main() {
     r := gin.New()
 
     // Only expose Swagger UI outside production
-    if os.Getenv("ENV") != "production" {
+    if os.Getenv("GIN_MODE") != "release" {
         r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
     }
 

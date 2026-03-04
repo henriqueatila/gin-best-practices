@@ -392,7 +392,7 @@ go tool cover -html=coverage.out
 
 Load these when you need deeper detail:
 
-- **[references/unit-tests.md](references/unit-tests.md)** — Handler httptest patterns, testing authenticated routes with mock JWT, middleware isolation tests, mock generation with `gomock`/manual mocks, `t.Helper`/`t.Cleanup`/`t.Parallel`, test fixtures and factories, benchmark tests (`BenchmarkX`), fuzz tests (`FuzzX`)
+- **[references/unit-tests.md](references/unit-tests.md)** — Handler httptest patterns, testing authenticated routes with mock JWT, middleware isolation tests, mock generation with `gomock`/manual mocks, `t.Helper`/`t.Cleanup`/`t.Parallel`, test fixtures and factories, benchmark tests (`BenchmarkX`), fuzz tests (`FuzzX`), golden file/snapshot testing, test organization (same-package vs external-package, build tags), testify assertions
 - **[references/integration-tests.md](references/integration-tests.md)** — testcontainers-go setup, `TestMain` for DB lifecycle, repository integration tests, cleanup between tests, build tags, fixture loading
 - **[references/e2e.md](references/e2e.md)** — End-to-end flow testing (register → login → CRUD), docker-compose test setup, GitHub Actions CI/CD, environment configuration, cleanup and idempotency
 

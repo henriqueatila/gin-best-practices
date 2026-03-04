@@ -8,15 +8,17 @@ Full reference for swaggo/swag annotations. Covers all `@Param` types, response 
 2. [General API Info](#2-general-api-info)
 3. [Param Patterns](#3-param-patterns)
 4. [Response Patterns](#4-response-patterns)
-5. [Security Definitions](#5-security-definitions)
-6. [Model Tags](#6-model-tags)
-7. [Enums from Constants](#7-enums-from-constants)
-8. [File Uploads](#8-file-uploads)
-9. [Response Headers](#9-response-headers)
-10. [Model Renaming](#10-model-renaming)
-11. [Deprecating Endpoints](#11-deprecating-endpoints)
-12. [Tag Metadata](#12-tag-metadata)
-13. [Custom Extensions](#13-custom-extensions)
+5. [CRUD Handler Annotation Examples](#5-crud-handler-annotation-examples)
+6. [Auth Endpoint Annotations](#6-auth-endpoint-annotations)
+7. [Security Definitions](#7-security-definitions)
+8. [Model Tags](#8-model-tags)
+9. [Enums from Constants](#9-enums-from-constants)
+10. [File Uploads](#10-file-uploads)
+11. [Response Headers](#11-response-headers)
+12. [Model Renaming](#12-model-renaming)
+13. [Deprecating Endpoints](#13-deprecating-endpoints)
+14. [Tag Metadata](#14-tag-metadata)
+15. [Custom Extensions](#15-custom-extensions)
 
 ---
 
@@ -215,7 +217,166 @@ When multiple codes share the same response type:
 
 ---
 
-## 5. Security Definitions
+## 5. CRUD Handler Annotation Examples
+
+Complete annotations for all standard CRUD operations. The SKILL.md covers Create, GetByID, and List. This section adds Update, Patch, Delete, and auth endpoints.
+
+### Update (PUT — full replacement)
+
+```go
+// Update godoc
+//
+// @Summary      Update user
+// @Description  Replace all user fields
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id     path  string                   true  "User ID" format(uuid)
+// @Param        input  body  domain.UpdateUserRequest  true  "Fields to update"
+// @Success      200    {object}  domain.UserResponse
+// @Failure      400    {object}  domain.ErrorResponse
+// @Failure      401    {object}  domain.ErrorResponse
+// @Failure      404    {object}  domain.ErrorResponse
+// @Failure      500    {object}  domain.ErrorResponse
+// @Router       /users/{id} [put]
+func (h *UserHandler) Update(c *gin.Context) {}
+```
+
+### Patch (PATCH — partial update)
+
+```go
+// Patch godoc
+//
+// @Summary      Partially update user
+// @Description  Update only the provided fields; omitted fields are unchanged
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id     path  string                  true  "User ID" format(uuid)
+// @Param        input  body  domain.PatchUserRequest  true  "Fields to patch"
+// @Success      200    {object}  domain.UserResponse
+// @Failure      400    {object}  domain.ErrorResponse
+// @Failure      401    {object}  domain.ErrorResponse
+// @Failure      404    {object}  domain.ErrorResponse
+// @Failure      500    {object}  domain.ErrorResponse
+// @Router       /users/{id} [patch]
+func (h *UserHandler) Patch(c *gin.Context) {}
+```
+
+### Delete
+
+```go
+// Delete godoc
+//
+// @Summary      Delete user
+// @Description  Permanently remove a user account
+// @Tags         users
+// @Security     BearerAuth
+// @Param        id  path  string  true  "User ID" format(uuid)
+// @Success      204
+// @Failure      401    {object}  domain.ErrorResponse
+// @Failure      403    {object}  domain.ErrorResponse
+// @Failure      404    {object}  domain.ErrorResponse
+// @Failure      500    {object}  domain.ErrorResponse
+// @Router       /users/{id} [delete]
+func (h *UserHandler) Delete(c *gin.Context) {}
+```
+
+---
+
+## 6. Auth Endpoint Annotations
+
+Annotate login, register, and token refresh endpoints. These do not require `@Security` because they produce tokens (not consume them).
+
+### Register
+
+```go
+// Register godoc
+//
+// @Summary      Register a new account
+// @Description  Create a user account and return access + refresh tokens
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.RegisterRequest  true  "Registration payload"
+// @Success      201      {object}  domain.TokenResponse
+// @Failure      400      {object}  domain.ErrorResponse
+// @Failure      409      {object}  domain.ErrorResponse   "Email already registered"
+// @Failure      500      {object}  domain.ErrorResponse
+// @Router       /auth/register [post]
+func (h *AuthHandler) Register(c *gin.Context) {}
+```
+
+### Login
+
+```go
+// Login godoc
+//
+// @Summary      Log in
+// @Description  Authenticate with email and password; returns access + refresh tokens
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.LoginRequest  true  "Login credentials"
+// @Success      200      {object}  domain.TokenResponse
+// @Failure      400      {object}  domain.ErrorResponse
+// @Failure      401      {object}  domain.ErrorResponse  "Invalid credentials"
+// @Failure      500      {object}  domain.ErrorResponse
+// @Router       /auth/login [post]
+func (h *AuthHandler) Login(c *gin.Context) {}
+```
+
+### Refresh Token
+
+```go
+// RefreshToken godoc
+//
+// @Summary      Refresh access token
+// @Description  Exchange a valid refresh token for a new access token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.RefreshRequest  true  "Refresh token payload"
+// @Success      200      {object}  domain.TokenResponse
+// @Failure      400      {object}  domain.ErrorResponse
+// @Failure      401      {object}  domain.ErrorResponse  "Refresh token expired or invalid"
+// @Failure      500      {object}  domain.ErrorResponse
+// @Router       /auth/refresh [post]
+func (h *AuthHandler) RefreshToken(c *gin.Context) {}
+```
+
+**Supporting DTOs for auth annotations:**
+
+```go
+// domain/auth.go
+
+type RegisterRequest struct {
+    Name     string `json:"name"     example:"Jane Doe"        binding:"required,min=2,max=100"`
+    Email    string `json:"email"    example:"jane@example.com" binding:"required,email"`
+    Password string `json:"password" example:"s3cur3P@ss!"      binding:"required,min=8"`
+}
+
+type LoginRequest struct {
+    Email    string `json:"email"    example:"jane@example.com" binding:"required,email"`
+    Password string `json:"password" example:"s3cur3P@ss!"      binding:"required"`
+}
+
+type RefreshRequest struct {
+    RefreshToken string `json:"refresh_token" example:"eyJhbGci..." binding:"required"`
+}
+
+type TokenResponse struct {
+    AccessToken  string `json:"access_token"  example:"eyJhbGci..."`
+    RefreshToken string `json:"refresh_token" example:"eyJhbGci..."`
+    ExpiresIn    int    `json:"expires_in"    example:"3600"`
+}
+```
+
+---
+
+## 7. Security Definitions
 
 ### API Key (Bearer JWT)
 
@@ -271,7 +432,7 @@ When multiple codes share the same response type:
 
 ---
 
-## 6. Model Tags
+## 8. Model Tags
 
 Complete list of struct tags recognized by swag:
 
@@ -318,7 +479,7 @@ type Example struct {
 
 ---
 
-## 7. Enums from Constants
+## 9. Enums from Constants
 
 Swag auto-detects Go `const` blocks and generates enum values:
 
@@ -343,7 +504,7 @@ This works when `OrderStatus` is a named type with `const` values of that type i
 
 ---
 
-## 8. File Uploads
+## 10. File Uploads
 
 ### Single File
 
@@ -379,7 +540,7 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) { ... }
 
 ---
 
-## 9. Response Headers
+## 11. Response Headers
 
 Document headers returned with responses:
 
@@ -392,7 +553,7 @@ Document headers returned with responses:
 
 ---
 
-## 10. Model Renaming
+## 12. Model Renaming
 
 Override the model name in Swagger output (useful for disambiguating types with the same name across packages):
 
@@ -411,7 +572,7 @@ In generated docs, this appears as `UserResponse` instead of `domain.User`.
 
 ---
 
-## 11. Deprecating Endpoints
+## 13. Deprecating Endpoints
 
 Mark an endpoint as deprecated in docs:
 
@@ -430,7 +591,7 @@ The endpoint appears with a strikethrough in Swagger UI.
 
 ---
 
-## 12. Tag Metadata
+## 14. Tag Metadata
 
 Add descriptions to tags in the Swagger UI sidebar. Place in the general API info block:
 
@@ -449,7 +610,7 @@ Tags without metadata still appear in Swagger UI, but without descriptions.
 
 ---
 
-## 13. Custom Extensions
+## 15. Custom Extensions
 
 Use `@x-` prefix for vendor-specific or custom metadata. Values are JSON:
 

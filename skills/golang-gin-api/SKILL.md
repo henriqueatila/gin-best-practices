@@ -82,9 +82,9 @@ func main() {
     srv := &http.Server{
         Addr:              ":" + os.Getenv("PORT"),
         Handler:           r,
-        ReadHeaderTimeout: 5 * time.Second,  // guards against Slowloris (CWE-400)
-        ReadTimeout:       10 * time.Second,
-        WriteTimeout:      10 * time.Second,
+        ReadHeaderTimeout: 10 * time.Second,  // guards against Slowloris (CWE-400)
+        ReadTimeout:       30 * time.Second,
+        WriteTimeout:      30 * time.Second,
         IdleTimeout:       120 * time.Second,
     }
 
@@ -168,7 +168,11 @@ func NewUserHandler(svc service.UserService, logger *slog.Logger) *UserHandler {
 func (h *UserHandler) Create(c *gin.Context) {
     var req domain.CreateUserRequest
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        // validationErrors formats validator messages into field-level errors (see error-handling.md)
+        c.JSON(http.StatusBadRequest, gin.H{
+            "error":  "validation failed",
+            "fields": validationErrors(err),
+        })
         return
     }
 
@@ -187,7 +191,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
     }
     var params uriParams
     if err := c.ShouldBindURI(&params); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request parameters"})
         return
     }
 
@@ -388,7 +392,7 @@ func (h *UserHandler) CreateWithNotification(c *gin.Context) {
 Load these when you need deeper detail:
 
 - **[references/routing.md](references/routing.md)** — Route groups, API versioning, path parameters, pagination, wildcard routes, file uploads, custom validators, request size limits
-- **[references/middleware.md](references/middleware.md)** — CORS, request logging with slog, rate limiting, request ID, timeout, recovery, custom middleware template
+- **[references/middleware.md](references/middleware.md)** — CORS, security headers, request logging with slog, rate limiting, request ID, timeout, recovery, custom middleware template
 - **[references/error-handling.md](references/error-handling.md)** — Full AppError system, sentinel errors, validation error formatting, panic recovery, consistent JSON error format
 - **[references/websocket.md](references/websocket.md)** — WebSocket with gorilla/websocket: upgrade handler, hub pattern, auth before upgrade, ping/pong keepalive, graceful shutdown, JSON messages, testing
 - **[references/rate-limiting.md](references/rate-limiting.md)** — Deep-dive rate limiting: token bucket, sliding window, Redis distributed, per-user/API-key quotas, tiered limits, response headers, graceful degradation

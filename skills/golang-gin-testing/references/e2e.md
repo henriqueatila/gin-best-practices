@@ -430,6 +430,16 @@ jobs:
       - name: Run unit tests
         run: go test -v -race -cover -tags='!integration !e2e' ./...
 
+      - name: Check coverage threshold
+        run: |
+          go test ./... -coverprofile=coverage.out -tags='!integration !e2e'
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below 80% threshold"
+            exit 1
+          fi
+          echo "Coverage: ${COVERAGE}%"
+
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:

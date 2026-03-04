@@ -79,6 +79,7 @@ import (
 
     "gorm.io/driver/postgres"
     "gorm.io/gorm"
+    "gorm.io/gorm/logger"
 )
 
 type Config struct {
@@ -90,8 +91,10 @@ type Config struct {
 
 // NewGORMDB opens a PostgreSQL connection with connection pool settings.
 // Architectural recommendation — not part of the Gin API.
-func NewGORMDB(cfg Config, logger *slog.Logger) (*gorm.DB, error) {
-    db, err := gorm.Open(postgres.Open(cfg.DSN), &gorm.Config{})
+func NewGORMDB(cfg Config, appLogger *slog.Logger) (*gorm.DB, error) {
+    db, err := gorm.Open(postgres.Open(cfg.DSN), &gorm.Config{
+        Logger: logger.Default.LogMode(logger.Warn),
+    })
     if err != nil {
         return nil, fmt.Errorf("gorm.Open: %w", err)
     }
@@ -101,13 +104,46 @@ func NewGORMDB(cfg Config, logger *slog.Logger) (*gorm.DB, error) {
         return nil, fmt.Errorf("db.DB: %w", err)
     }
 
-    sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)    // e.g. 25
-    sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)    // e.g. 5
-    sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime) // e.g. 5*time.Minute
+    sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)       // e.g. 25
+    sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)       // e.g. 5
+    sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)  // e.g. 5*time.Minute
 
-    logger.Info("database connected")
+    if err := sqlDB.Ping(); err != nil {
+        return nil, fmt.Errorf("db.Ping: %w", err)
+    }
+
+    appLogger.Info("database connected")
     return db, nil
 }
+
+// ConnectWithRetry retries the connection with exponential backoff.
+// Use during startup when the database container may not be ready yet.
+func ConnectWithRetry(dsn string, maxRetries int) (*gorm.DB, error) {
+    var db *gorm.DB
+    var err error
+    for i := 0; i < maxRetries; i++ {
+        db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+            Logger: logger.Default.LogMode(logger.Warn),
+        })
+        if err == nil {
+            return db, nil
+        }
+        backoff := time.Duration(1<<uint(i)) * time.Second
+        slog.Warn("database connection failed, retrying", "attempt", i+1, "backoff", backoff, "error", err)
+        time.Sleep(backoff)
+    }
+    return nil, fmt.Errorf("failed to connect after %d retries: %w", maxRetries, err)
+}
+```
+
+**TLS / production DSN:** Always use `sslmode=verify-full` in production to prevent MITM attacks.
+
+```go
+// Development (local Docker)
+dsn := "host=localhost user=app password=secret dbname=myapp sslmode=disable"
+
+// Production: verify the server certificate
+dsn := "host=db.example.com user=app password=*** dbname=myapp sslmode=verify-full sslrootcert=/etc/ssl/certs/rds-ca.pem"
 ```
 
 For sqlx, see [references/sqlx-patterns.md](references/sqlx-patterns.md#connection-setup).
@@ -136,7 +172,7 @@ func NewUserRepository(db *gorm.DB) domain.UserRepository {
 
 func (r *gormUserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
     var m UserModel
-    if err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {
+    if err := r.txFromCtx(ctx).WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
             return nil, domain.ErrNotFound.New(err)
         }
@@ -188,7 +224,7 @@ For full sqlx patterns (struct scanning, NamedExec, IN clauses, transactions): s
 
 ## Transaction Pattern (Context-Based)
 
-Pass `*gorm.DB` or `*sqlx.Tx` via context, or accept a transaction parameter. The context-based approach keeps the service layer clean:
+Pass `*gorm.DB` via context so repositories transparently participate in a transaction. The service orchestrates; repositories just call `txFromCtx`.
 
 ```go
 // internal/repository/tx.go (GORM approach)
@@ -208,11 +244,24 @@ func WithTx(ctx context.Context, tx *gorm.DB) context.Context {
 }
 
 // txFromCtx returns the transaction from ctx, or the default db.
+// Every repository method should call this instead of r.db directly.
 func (r *gormUserRepository) txFromCtx(ctx context.Context) *gorm.DB {
     if tx, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
         return tx
     }
     return r.db
+}
+
+// Create uses txFromCtx — works both standalone and inside a transaction.
+func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) error {
+    m := fromDomain(user)
+    if err := r.txFromCtx(ctx).WithContext(ctx).Create(m).Error; err != nil {
+        return mapGORMError(err)
+    }
+    user.ID = m.ID
+    user.CreatedAt = m.CreatedAt
+    user.UpdatedAt = m.UpdatedAt
+    return nil
 }
 
 // Service-layer usage — the service orchestrates the transaction:
@@ -227,6 +276,51 @@ func (s *userService) RegisterWithProfile(ctx context.Context, req domain.Create
     })
 }
 ```
+
+## Cursor / Keyset Pagination
+
+Offset pagination (`LIMIT x OFFSET y`) degrades at large offsets because PostgreSQL must skip rows. **Keyset pagination** is O(log n) via an index seek — preferred for large or fast-growing tables.
+
+```go
+// domain/user.go — extend ListOptions with cursor support
+type CursorOptions struct {
+    Cursor time.Time // value of created_at from the last item on the previous page
+    Limit  int
+}
+
+// internal/repository/user_repository_gorm.go
+func (r *gormUserRepository) ListAfterCursor(ctx context.Context, opts domain.CursorOptions) ([]domain.User, error) {
+    limit := opts.Limit
+    if limit <= 0 || limit > 100 {
+        limit = 20
+    }
+
+    var models []UserModel
+    q := r.txFromCtx(ctx).WithContext(ctx).Order("created_at ASC").Limit(limit)
+    if !opts.Cursor.IsZero() {
+        q = q.Where("created_at > ?", opts.Cursor)
+    }
+    if err := q.Find(&models).Error; err != nil {
+        return nil, domain.ErrInternal.New(err)
+    }
+
+    users := make([]domain.User, len(models))
+    for i, m := range models {
+        users[i] = *m.ToDomain()
+    }
+    return users, nil
+}
+```
+
+**Usage in handler:** Return `created_at` of the last item as `next_cursor`; client sends it back as a query param. No page numbers needed.
+
+| | Offset | Keyset |
+|---|---|---|
+| Performance | O(offset) — slow at depth | O(log n) — index seek |
+| Stability | Drifts if rows inserted/deleted | Stable |
+| Arbitrary jump | Yes | No |
+
+Use offset for small datasets or admin UIs that need page numbers; keyset for feeds, audit logs, and large tables.
 
 ## Dependency Injection in main.go
 

@@ -26,6 +26,7 @@ Add JWT-based authentication and role-based access control to a Gin API. This sk
 go get github.com/golang-jwt/jwt/v5
 go get golang.org/x/crypto
 go get github.com/google/uuid
+go get golang.org/x/time/rate
 ```
 
 ## Claims Struct
@@ -84,14 +85,16 @@ type TokenConfig struct {
 // GenerateAccessToken creates a signed JWT access token for the given user.
 // Architectural recommendation — not part of the Gin API.
 func GenerateAccessToken(cfg TokenConfig, userID, email, role string) (string, error) {
+    now := time.Now()
     claims := Claims{
         RegisteredClaims: jwt.RegisteredClaims{
             ID:        uuid.NewString(), // jti — required for token blacklisting
             Subject:   userID,
             Issuer:    cfg.Issuer,
             Audience:  jwt.ClaimStrings(cfg.Audience),
-            IssuedAt:  jwt.NewNumericDate(time.Now()),
-            ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.AccessTTL)),
+            IssuedAt:  jwt.NewNumericDate(now),
+            NotBefore: jwt.NewNumericDate(now), // token not valid before issue time
+            ExpiresAt: jwt.NewNumericDate(now.Add(cfg.AccessTTL)),
         },
         UserID: userID,
         Email:  email,
@@ -107,13 +110,15 @@ func GenerateAccessToken(cfg TokenConfig, userID, email, role string) (string, e
 
 // GenerateRefreshToken creates a longer-lived refresh token (user ID only).
 func GenerateRefreshToken(cfg TokenConfig, userID string) (string, error) {
+    now := time.Now()
     claims := RefreshClaims{
         RegisteredClaims: jwt.RegisteredClaims{
             ID:        uuid.NewString(), // jti — required for per-token blacklisting
             Subject:   userID,
             Issuer:    cfg.Issuer,
-            IssuedAt:  jwt.NewNumericDate(time.Now()),
-            ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.RefreshTTL)),
+            IssuedAt:  jwt.NewNumericDate(now),
+            NotBefore: jwt.NewNumericDate(now),
+            ExpiresAt: jwt.NewNumericDate(now.Add(cfg.RefreshTTL)),
         },
     }
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -341,13 +346,15 @@ func registerRoutes(r *gin.Engine, authHandler *handler.AuthHandler, userHandler
 
     api := r.Group("/api/v1")
 
-    // Public routes — no auth
-    public := api.Group("")
+    // Auth routes — rate-limited: 5 requests per minute per IP
+    authRoutes := api.Group("/auth")
+    authRoutes.Use(middleware.IPRateLimiter(rate.Every(12*time.Second), 5))
     {
-        public.POST("/auth/login", authHandler.Login)
-        public.POST("/auth/refresh", authHandler.Refresh)
-        public.POST("/users", userHandler.Create) // registration
+        authRoutes.POST("/login", authHandler.Login)
+        authRoutes.POST("/register", authHandler.Register)
+        authRoutes.POST("/refresh", authHandler.Refresh)
     }
+    api.POST("/users", userHandler.Create) // registration (also rate-limit in production)
 
     // Protected routes — JWT required
     protected := api.Group("")
@@ -366,6 +373,50 @@ func registerRoutes(r *gin.Engine, authHandler *handler.AuthHandler, userHandler
     }
 }
 ```
+
+### Rate Limiter Middleware
+
+```go
+// pkg/middleware/rate_limiter.go
+package middleware
+
+import (
+    "net/http"
+    "sync"
+
+    "github.com/gin-gonic/gin"
+    "golang.org/x/time/rate"
+)
+
+// IPRateLimiter limits requests per IP using a token-bucket algorithm.
+// r controls how fast tokens refill; b is the burst (max simultaneous requests).
+func IPRateLimiter(r rate.Limit, b int) gin.HandlerFunc {
+    limiters := make(map[string]*rate.Limiter)
+    var mu sync.Mutex
+
+    getLimiter := func(ip string) *rate.Limiter {
+        mu.Lock()
+        defer mu.Unlock()
+        if lim, ok := limiters[ip]; ok {
+            return lim
+        }
+        lim := rate.NewLimiter(r, b)
+        limiters[ip] = lim
+        return lim
+    }
+
+    return func(c *gin.Context) {
+        lim := getLimiter(c.ClientIP())
+        if !lim.Allow() {
+            c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
+            return
+        }
+        c.Next()
+    }
+}
+```
+
+> **Production note:** The in-process map above works for single-instance deployments. For multi-instance deployments, use a Redis-backed limiter (e.g. `go-redis/redis_rate`) so limits are shared across all pods.
 
 ## Getting Current User in Handlers
 
@@ -404,7 +455,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 
 Load these when you need deeper detail:
 
-- **[references/jwt-patterns.md](references/jwt-patterns.md)** — Access + refresh token architecture, token refresh endpoint, token blacklisting (Redis), RS256 vs HS256, custom claims, storage recommendations (httpOnly cookie vs localStorage), complete auth flow
+- **[references/jwt-patterns.md](references/jwt-patterns.md)** — Access + refresh token architecture, token refresh endpoint, token blacklisting (Redis), RS256 vs HS256, custom claims, storage recommendations (httpOnly cookie vs localStorage), CSRF protection, complete auth flow
 - **[references/rbac.md](references/rbac.md)** — RequireRole/RequireAnyRole middleware, permission-based access, role hierarchy, multi-tenant authorization, resource-level authorization, complete RBAC example
 
 ## Cross-Skill References
