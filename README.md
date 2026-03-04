@@ -12,12 +12,12 @@ Agent Skills for building production-grade REST APIs with Go and the Gin framewo
 
 | Skill | Description | Install |
 |---|---|---|
-| **golang-gin-api** | Core REST API — routing, handlers, binding, error handling, project structure | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-api` |
-| **golang-gin-auth** | JWT authentication, login handler, RBAC middleware, token lifecycle | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-auth` |
-| **golang-gin-database** | PostgreSQL with GORM or sqlx, repository pattern, migrations, connection pooling | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-database` |
-| **golang-gin-testing** | Unit tests with httptest, integration tests with testcontainers, e2e flows | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-testing` |
-| **golang-gin-deploy** | Multi-stage Dockerfile, docker-compose, Kubernetes manifests, CI/CD pipelines | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-deploy` |
-| **golang-gin-swagger** | Swagger/OpenAPI docs with swaggo/swag, annotations, Swagger UI, CI/CD | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-swagger` |
+| **golang-gin-api** | Core REST API — routing, handlers, binding, error handling, security headers, CORS, project structure | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-api` |
+| **golang-gin-auth** | JWT auth, RBAC middleware, token lifecycle, CSRF protection, rate limiting, bcrypt, secure cookies | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-auth` |
+| **golang-gin-database** | PostgreSQL with GORM/sqlx, repository pattern, migrations, connection retry, cursor pagination, transactions | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-database` |
+| **golang-gin-testing** | Unit/integration/e2e tests, benchmarks, fuzz testing, golden files, testcontainers, coverage thresholds | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-testing` |
+| **golang-gin-deploy** | Multi-stage Docker, K8s (PDB, NetworkPolicy, HPA), Trivy scanning, CI/CD, observability | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-deploy` |
+| **golang-gin-swagger** | Swagger/OpenAPI with swaggo/swag, full CRUD + auth annotations, Swagger UI, CI/CD | `npx skills add henriqueatila/golang-gin-best-practices --skill golang-gin-swagger` |
 
 ---
 
@@ -168,6 +168,8 @@ golang-gin-best-practices/
 
 **Opinionated patterns** — Each skill teaches one right way, not five options. The patterns are chosen for production correctness, not tutorial simplicity.
 
+**Enterprise-audited** — Every skill passed a multi-agent enterprise audit covering correctness, security, completeness, and production-readiness. All code examples compile, handle errors properly, and follow OWASP security guidelines.
+
 **PostgreSQL default** — All database examples target PostgreSQL. GORM and sqlx are both covered; the repository interface allows swapping implementations without touching business logic.
 
 **Production-first** — Examples use `gin.New()` + explicit middleware instead of `gin.Default()`, `log/slog` instead of `fmt.Println`, `ShouldBind*` instead of `Bind*`, and environment variables instead of hardcoded configuration.
@@ -177,6 +179,19 @@ golang-gin-best-practices/
 **Thin handlers** — Handlers bind input, call a service, and format the response. Business logic lives in services. Data access lives in repositories. This is enforced consistently across all skills.
 
 **Context propagation** — All blocking calls receive `c.Request.Context()` (handlers) or a propagated `context.Context` (services and repositories). This enables proper cancellation and tracing.
+
+---
+
+## Security
+
+All skills enforce enterprise security patterns:
+
+- **OWASP headers** — `X-Content-Type-Options`, `X-Frame-Options`, `CSP`, `HSTS`, `Permissions-Policy`
+- **JWT** — `jti` for token blacklisting, `Issuer`/`Audience` validation, `NotBefore` claims
+- **Auth hardening** — bcrypt (cost 12), rate limiting on auth endpoints, CSRF double-submit cookies, secure cookie flags
+- **Database** — parameterized queries only, `pgconn.PgError` typed assertions, TLS/sslmode guidance
+- **Containers** — non-root, read-only rootfs, dropped capabilities, seccomp, Trivy image scanning
+- **No internal error leakage** — all error responses use generic messages; real errors logged server-side via `slog`
 
 ---
 
