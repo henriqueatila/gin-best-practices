@@ -1,6 +1,6 @@
 ---
 name: golang-gin-testing
-description: "Test Go Gin REST APIs with unit, integration, and end-to-end tests. Covers httptest patterns, table-driven tests, mocking repositories, testcontainers for real databases, and CI/CD integration. Use when writing tests for Gin handlers, services, middleware, or setting up test infrastructure for a Go API."
+description: "Test Go Gin REST APIs with unit, integration, e2e, benchmark, and fuzz tests. Covers httptest patterns, table-driven tests, golden file snapshots, mocking repositories, testcontainers, coverage thresholds, race detection, and CI/CD integration. Use when writing tests for Gin handlers, services, middleware, or setting up test infrastructure for a Go API."
 license: MIT
 metadata:
   author: henriqueatila

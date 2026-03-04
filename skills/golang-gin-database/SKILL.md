@@ -1,6 +1,6 @@
 ---
 name: golang-gin-database
-description: "Integrate PostgreSQL databases with Go Gin APIs using GORM or sqlx. Covers repository pattern, connection pooling, transactions, migrations, and dependency injection. Use when adding database support, creating models, writing queries, implementing repositories, setting up migrations, or wiring database layers into a Gin project. Also activate when the user mentions GORM, sqlx, database connection, SQL queries, repository pattern, or database migrations in a Go/Gin context."
+description: "Integrate PostgreSQL databases with Go Gin APIs using GORM or sqlx. Covers repository pattern, connection retry with backoff, cursor/keyset pagination, context-based transactions, TLS/sslmode, migrations, and dependency injection. Use when adding database support, creating models, writing queries, implementing repositories, setting up migrations, or wiring database layers into a Gin project. Also activate when the user mentions GORM, sqlx, database connection, SQL queries, repository pattern, or database migrations in a Go/Gin context."
 license: MIT
 metadata:
   author: henriqueatila

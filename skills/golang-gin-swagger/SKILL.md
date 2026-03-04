@@ -1,6 +1,6 @@
 ---
 name: golang-gin-swagger
-description: "Generate Swagger/OpenAPI documentation for Go Gin APIs using swaggo/swag. Covers annotation syntax, model documentation, Swagger UI setup, security definitions, and CI/CD integration. Use when adding API docs, Swagger UI, OpenAPI spec, endpoint documentation, or auto-generated API reference to a Gin application."
+description: "Generate Swagger/OpenAPI documentation for Go Gin APIs using swaggo/swag. Covers full CRUD + auth endpoint annotations, model documentation, Swagger UI setup, security definitions, and CI/CD integration. Use when adding API docs, Swagger UI, OpenAPI spec, endpoint documentation, or auto-generated API reference to a Gin application."
 license: MIT
 metadata:
   author: henriqueatila
