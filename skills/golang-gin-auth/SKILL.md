@@ -4,7 +4,7 @@ description: "Implement authentication and authorization in Go Gin APIs. Covers 
 license: MIT
 metadata:
   author: henriqueatila
-  version: "1.0.0"
+  version: "1.0.3"
 ---
 
 # golang-gin-auth — Authentication & Authorization
@@ -25,6 +25,7 @@ Add JWT-based authentication and role-based access control to a Gin API. This sk
 ```bash
 go get github.com/golang-jwt/jwt/v5
 go get golang.org/x/crypto
+go get github.com/google/uuid
 ```
 
 ## Claims Struct
@@ -37,13 +38,21 @@ package auth
 
 import "github.com/golang-jwt/jwt/v5"
 
-// Claims holds the JWT payload. Embed RegisteredClaims for standard fields.
+// Claims holds the JWT payload for access tokens. Embed RegisteredClaims for standard fields.
+// RegisteredClaims.ID carries the jti — required for token blacklisting.
 type Claims struct {
     jwt.RegisteredClaims
-    UserID string   `json:"uid"`
-    Email  string   `json:"email"`
-    Role   string   `json:"role"`
+    UserID string `json:"uid"`
+    Email  string `json:"email"`
+    Role   string `json:"role"`
     // Add Roles []string for multi-role support, TenantID for multi-tenancy
+}
+
+// RefreshClaims is the minimal payload for refresh tokens.
+// Only the subject (UserID) is needed — refresh doesn't need role/email.
+type RefreshClaims struct {
+    jwt.RegisteredClaims
+    // RegisteredClaims.ID carries the jti for per-token blacklisting.
 }
 ```
 
@@ -59,6 +68,7 @@ import (
     "time"
 
     "github.com/golang-jwt/jwt/v5"
+    "github.com/google/uuid"
 )
 
 // TokenConfig holds secrets and TTLs. Load from environment, never hardcode.
@@ -67,6 +77,8 @@ type TokenConfig struct {
     RefreshSecret []byte
     AccessTTL     time.Duration // e.g. 15 * time.Minute
     RefreshTTL    time.Duration // e.g. 7 * 24 * time.Hour
+    Issuer        string        // e.g. "myapp"
+    Audience      []string      // e.g. ["api.myapp.com"]
 }
 
 // GenerateAccessToken creates a signed JWT access token for the given user.
@@ -74,7 +86,10 @@ type TokenConfig struct {
 func GenerateAccessToken(cfg TokenConfig, userID, email, role string) (string, error) {
     claims := Claims{
         RegisteredClaims: jwt.RegisteredClaims{
+            ID:        uuid.NewString(), // jti — required for token blacklisting
             Subject:   userID,
+            Issuer:    cfg.Issuer,
+            Audience:  jwt.ClaimStrings(cfg.Audience),
             IssuedAt:  jwt.NewNumericDate(time.Now()),
             ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.AccessTTL)),
         },
@@ -92,10 +107,14 @@ func GenerateAccessToken(cfg TokenConfig, userID, email, role string) (string, e
 
 // GenerateRefreshToken creates a longer-lived refresh token (user ID only).
 func GenerateRefreshToken(cfg TokenConfig, userID string) (string, error) {
-    claims := jwt.RegisteredClaims{
-        Subject:   userID,
-        IssuedAt:  jwt.NewNumericDate(time.Now()),
-        ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.RefreshTTL)),
+    claims := RefreshClaims{
+        RegisteredClaims: jwt.RegisteredClaims{
+            ID:        uuid.NewString(), // jti — required for per-token blacklisting
+            Subject:   userID,
+            Issuer:    cfg.Issuer,
+            IssuedAt:  jwt.NewNumericDate(time.Now()),
+            ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.RefreshTTL)),
+        },
     }
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
     signed, err := token.SignedString(cfg.RefreshSecret)
@@ -180,9 +199,50 @@ func Auth(cfg auth.TokenConfig, logger *slog.Logger) gin.HandlerFunc {
 }
 ```
 
+## Registration — Password Hashing
+
+Always hash passwords with bcrypt before storing. Use cost >= 12 for production.
+
+```go
+// internal/handler/auth_handler.go (Register method)
+
+type registerRequest struct {
+    Email    string `json:"email"    binding:"required,email"`
+    Password string `json:"password" binding:"required,min=8"`
+}
+
+func (h *AuthHandler) Register(c *gin.Context) {
+    var req registerRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+        return
+    }
+
+    // Hash password with bcrypt — cost 12 minimum for production
+    hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
+    if err != nil {
+        h.logger.Error("failed to hash password", "error", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    user, err := h.userRepo.Create(c.Request.Context(), domain.CreateUserRequest{
+        Email:        req.Email,
+        PasswordHash: string(hash),
+    })
+    if err != nil {
+        h.logger.Error("failed to create user", "error", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    c.JSON(http.StatusCreated, gin.H{"user_id": user.ID})
+}
+```
+
 ## Login Handler
 
-> **Security note:** In production, never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
+> **Security note:** Never expose raw `err.Error()` to clients. Return generic messages and log the error server-side. See **golang-gin-clean-arch** error handling patterns.
 
 Validates credentials via `UserRepository`, then returns both tokens. Thin handler — no business logic beyond orchestration.
 
@@ -223,7 +283,7 @@ type tokenResponse struct {
 func (h *AuthHandler) Login(c *gin.Context) {
     var req loginRequest
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
         return
     }
 

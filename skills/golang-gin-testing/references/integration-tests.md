@@ -109,8 +109,18 @@ func TestMain(m *testing.M) {
     testContainer = pgContainer
 
     // Build DSN from container
-    host, _ := pgContainer.Host(ctx)
-    port, _ := pgContainer.MappedPort(ctx, "5432")
+    host, err := pgContainer.Host(ctx)
+    if err != nil {
+        slog.Error("failed to get container host", "error", err)
+        cleanupContainer(ctx)
+        os.Exit(1)
+    }
+    port, err := pgContainer.MappedPort(ctx, "5432")
+    if err != nil {
+        slog.Error("failed to get mapped port", "error", err)
+        cleanupContainer(ctx)
+        os.Exit(1)
+    }
     dsn := fmt.Sprintf("host=%s port=%s user=testuser password=testpass dbname=testdb sslmode=disable",
         host, port.Port())
 
@@ -203,8 +213,14 @@ func NewPostgres(t *testing.T, models ...any) *gorm.DB {
         }
     })
 
-    host, _ := pgContainer.Host(ctx)
-    port, _ := pgContainer.MappedPort(ctx, "5432")
+    host, err := pgContainer.Host(ctx)
+    if err != nil {
+        t.Fatalf("testdb.NewPostgres: get host: %v", err)
+    }
+    port, err := pgContainer.MappedPort(ctx, "5432")
+    if err != nil {
+        t.Fatalf("testdb.NewPostgres: get mapped port: %v", err)
+    }
     dsn := fmt.Sprintf("host=%s port=%s user=testuser password=testpass dbname=testdb sslmode=disable",
         host, port.Port())
 
@@ -224,6 +240,12 @@ func NewPostgres(t *testing.T, models ...any) *gorm.DB {
 
 // Truncate clears all rows from the given tables.
 // Call between tests to avoid state leaking across test cases.
+//
+// SAFETY: table names must be compile-time constants from your codebase.
+// Never pass user-supplied input here — PostgreSQL does not support
+// parameterized DDL statements, so string concatenation is unavoidable.
+// The caller is responsible for ensuring only known, hardcoded table names
+// are passed (e.g., Truncate(t, db, "users", "orders")).
 func Truncate(t *testing.T, db *gorm.DB, tables ...string) {
     t.Helper()
     for _, table := range tables {
@@ -563,8 +585,14 @@ func TestMigrations_UpAndDown(t *testing.T) {
     }
     t.Cleanup(func() { pgc.Terminate(ctx) })
 
-    host, _ := pgc.Host(ctx)
-    port, _ := pgc.MappedPort(ctx, "5432")
+    host, err := pgc.Host(ctx)
+    if err != nil {
+        t.Fatalf("get container host: %v", err)
+    }
+    port, err := pgc.MappedPort(ctx, "5432")
+    if err != nil {
+        t.Fatalf("get mapped port: %v", err)
+    }
     dsn := fmt.Sprintf("host=%s port=%s user=u password=p dbname=migrate_test sslmode=disable",
         host, port.Port())
 

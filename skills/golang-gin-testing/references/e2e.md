@@ -228,6 +228,9 @@ func (a *appUnderTest) do(t *testing.T, method, path, body, token string) *httpt
 }
 
 // truncate clears rows between tests.
+// SAFETY: table names must be compile-time constants (e.g., "users", "orders").
+// Never pass user-supplied input — PostgreSQL DDL does not support parameterized
+// table names, so string concatenation is used. Restrict callers to hardcoded names.
 func (a *appUnderTest) truncate(t *testing.T, tables ...string) {
     t.Helper()
     for _, tbl := range tables {
@@ -296,8 +299,18 @@ func TestMain(m *testing.M) {
         os.Exit(1)
     }
 
-    host, _ := pgc.Host(ctx)
-    port, _ := pgc.MappedPort(ctx, "5432")
+    host, err := pgc.Host(ctx)
+    if err != nil {
+        slog.Error("e2e: get container host", "error", err)
+        pgc.Terminate(ctx)
+        os.Exit(1)
+    }
+    port, err := pgc.MappedPort(ctx, "5432")
+    if err != nil {
+        slog.Error("e2e: get mapped port", "error", err)
+        pgc.Terminate(ctx)
+        os.Exit(1)
+    }
     dsn := fmt.Sprintf("host=%s port=%s user=e2euser password=e2epass dbname=e2edb sslmode=disable",
         host, port.Port())
 

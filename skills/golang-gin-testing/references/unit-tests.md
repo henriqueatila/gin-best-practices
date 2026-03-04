@@ -15,6 +15,8 @@ All examples use the same `User` domain model and `AppError` pattern from **gola
 7. [Test Fixtures and Factories](#test-fixtures-and-factories)
 8. [t.Helper / t.Cleanup / t.Parallel](#thelper--tcleanup--tparallel)
 9. [Testing Middleware in Isolation](#testing-middleware-in-isolation)
+10. [Benchmark Tests](#benchmark-tests)
+11. [Fuzz Tests](#fuzz-tests)
 
 ---
 
@@ -731,3 +733,150 @@ func TestAuthMiddleware_InjectsClaimsOnSuccess(t *testing.T) {
     }
 }
 ```
+
+---
+
+## Benchmark Tests
+
+Use `Benchmark*` functions to measure performance of hot paths — JSON serialization, handler throughput, service logic. Run with `go test -bench=. -benchmem ./...`.
+
+```go
+// internal/handler/user_handler_bench_test.go
+package handler_test
+
+import (
+    "context"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+
+    "myapp/internal/domain"
+)
+
+// BenchmarkUserHandler_GetByID measures handler throughput including
+// JSON marshaling and routing overhead.
+func BenchmarkUserHandler_GetByID(b *testing.B) {
+    svc := &mockUserService{
+        getByIDFn: func(_ context.Context, id string) (*domain.User, error) {
+            return &domain.User{
+                ID:    id,
+                Name:  "Alice",
+                Email: "alice@example.com",
+                Role:  "user",
+            }, nil
+        },
+    }
+    router := setupUserRouter(svc)
+
+    b.ReportAllocs() // report allocations per operation
+    b.ResetTimer()
+
+    for b.Loop() {
+        req := httptest.NewRequest(http.MethodGet, "/users/user-123", nil)
+        w := httptest.NewRecorder()
+        router.ServeHTTP(w, req)
+        if w.Code != http.StatusOK {
+            b.Fatalf("unexpected status %d", w.Code)
+        }
+    }
+}
+
+// BenchmarkUserHandler_GetByID_Parallel runs the same benchmark
+// with multiple goroutines to expose concurrency bottlenecks.
+func BenchmarkUserHandler_GetByID_Parallel(b *testing.B) {
+    svc := &mockUserService{
+        getByIDFn: func(_ context.Context, id string) (*domain.User, error) {
+            return &domain.User{ID: id, Name: "Alice", Email: "alice@example.com", Role: "user"}, nil
+        },
+    }
+    router := setupUserRouter(svc)
+
+    b.ReportAllocs()
+    b.ResetTimer()
+
+    b.RunParallel(func(pb *testing.PB) {
+        for pb.Next() {
+            req := httptest.NewRequest(http.MethodGet, "/users/user-123", nil)
+            w := httptest.NewRecorder()
+            router.ServeHTTP(w, req)
+        }
+    })
+}
+```
+
+Run benchmarks:
+
+```bash
+# All benchmarks in the package
+go test -bench=. -benchmem ./internal/handler/...
+
+# Specific benchmark, 5 seconds run time
+go test -bench=BenchmarkUserHandler_GetByID -benchtime=5s -benchmem ./internal/handler/...
+
+# Compare two versions with benchstat
+go test -bench=. -benchmem -count=5 ./... > before.txt
+# (make changes)
+go test -bench=. -benchmem -count=5 ./... > after.txt
+benchstat before.txt after.txt
+```
+
+---
+
+## Fuzz Tests
+
+Go 1.18+ native fuzzing (`func FuzzX(f *testing.F)`) finds edge cases in input parsing that table-driven tests miss. Use for request binding, validators, and string-processing utilities.
+
+```go
+// internal/handler/user_handler_fuzz_test.go
+package handler_test
+
+import (
+    "context"
+    "net/http"
+    "net/http/httptest"
+    "strings"
+    "testing"
+
+    "myapp/internal/domain"
+)
+
+// FuzzUserHandler_Create exercises the Create handler with arbitrary JSON bodies.
+// The fuzzer discovers inputs that cause panics or unexpected status codes.
+//
+// Run the fuzzer: go test -fuzz=FuzzUserHandler_Create ./internal/handler/...
+// Run the corpus only (fast, CI-safe): go test ./internal/handler/...
+func FuzzUserHandler_Create(f *testing.F) {
+    // Seed corpus — representative inputs the fuzzer mutates from
+    f.Add(`{"name":"Alice","email":"alice@example.com","password":"secret123"}`)
+    f.Add(`{"name":"","email":"bad-email","password":"x"}`)
+    f.Add(`{}`)
+    f.Add(`not-json`)
+    f.Add(`{"name":null,"email":null}`)
+
+    svc := &mockUserService{
+        createFn: func(_ context.Context, req domain.CreateUserRequest) (*domain.User, error) {
+            return &domain.User{ID: "fuzz-id", Name: req.Name, Email: req.Email, Role: "user"}, nil
+        },
+    }
+    router := setupUserRouter(svc)
+
+    f.Fuzz(func(t *testing.T, body string) {
+        req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(body))
+        req.Header.Set("Content-Type", "application/json")
+        w := httptest.NewRecorder()
+        router.ServeHTTP(w, req)
+
+        // The handler must NEVER panic (recovered by Gin) and must always
+        // return a valid HTTP status — never a 5xx for invalid client input.
+        if w.Code == http.StatusInternalServerError {
+            t.Errorf("handler returned 500 for input %q; body: %s", body, w.Body)
+        }
+    })
+}
+```
+
+**Key rules for fuzz tests:**
+- Seed corpus must include valid inputs and known edge cases
+- The fuzz function must not have non-deterministic behavior (no random, no time)
+- Run in CI with `-fuzz=` omitted (seed corpus only) — fuzzing itself runs locally or on dedicated infrastructure
+- Found crash inputs are saved to `testdata/fuzz/FuzzX/` automatically

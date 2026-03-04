@@ -68,10 +68,11 @@ func (m *UserModel) ToDomain() *domain.User {
 // fromDomain converts a domain entity to a GORM model.
 func fromDomain(u *domain.User) *UserModel {
     return &UserModel{
-        ID:    u.ID,
-        Name:  u.Name,
-        Email: u.Email,
-        Role:  u.Role,
+        ID:           u.ID,
+        Name:         u.Name,
+        Email:        u.Email,
+        PasswordHash: u.PasswordHash, // set by service layer before calling repo
+        Role:         u.Role,
     }
 }
 ```
@@ -399,10 +400,9 @@ func (r *gormUserRepository) BulkCreate(ctx context.Context, users []domain.User
 
 // FindInBatches — process large result sets without loading all rows into memory
 func (r *gormUserRepository) ExportAll(ctx context.Context, process func([]domain.User) error) error {
+    var models []UserModel // declared outside: GORM populates this each batch
     return r.db.WithContext(ctx).Model(&UserModel{}).
-        FindInBatches(&[]UserModel{}, 200, func(tx *gorm.DB, batch int) error {
-            var models []UserModel
-            tx.Statement.Dest = &models
+        FindInBatches(&models, 200, func(tx *gorm.DB, batch int) error {
             users := make([]domain.User, len(models))
             for i, m := range models {
                 users[i] = *m.ToDomain()
@@ -450,8 +450,8 @@ package repository
 
 import (
     "errors"
-    "strings"
 
+    "github.com/jackc/pgx/v5/pgconn"
     "gorm.io/gorm"
     "myapp/internal/domain"
 )
@@ -461,15 +461,12 @@ func mapGORMError(err error) error {
     if errors.Is(err, gorm.ErrRecordNotFound) {
         return domain.ErrNotFound.New(err)
     }
-    // PostgreSQL unique violation (error code 23505)
-    if isUniqueViolation(err) {
+    // PostgreSQL unique violation (SQLSTATE 23505) — typed assertion, not string matching
+    var pgErr *pgconn.PgError
+    if errors.As(err, &pgErr) && pgErr.Code == "23505" {
         return domain.ErrConflict.New(err)
     }
     return domain.ErrInternal.New(err)
-}
-
-func isUniqueViolation(err error) bool {
-    return err != nil && strings.Contains(err.Error(), "23505")
 }
 
 // Usage — consistent error mapping in every repository method:
@@ -490,6 +487,13 @@ func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) erro
 ## PostgreSQL-Specific Features
 
 ```go
+import (
+    "gorm.io/gorm"
+    "gorm.io/gorm/clause"
+    "github.com/lib/pq"      // pq.StringArray for PostgreSQL array columns
+    "gorm.io/datatypes"      // datatypes.JSON for JSONB columns
+)
+
 // ON CONFLICT DO NOTHING — idempotent insert
 r.db.WithContext(ctx).
     Clauses(clause.OnConflict{DoNothing: true}).

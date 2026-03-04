@@ -242,15 +242,25 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 ```go
 // cmd/api/main.go
-import "flag"
+import (
+    "flag"
+    "fmt"
+    "net/http"
+    "os"
+)
 
 func main() {
     healthCheck := flag.Bool("health-check", false, "run health check and exit")
     flag.Parse()
 
     if *healthCheck {
-        resp, err := http.Get("http://localhost:" + os.Getenv("PORT") + "/health")
-        if err != nil || resp.StatusCode != http.StatusOK {
+        url := fmt.Sprintf("http://localhost:%s/health", os.Getenv("PORT"))
+        resp, err := http.Get(url)
+        if err != nil {
+            os.Exit(1)
+        }
+        defer resp.Body.Close()
+        if resp.StatusCode != http.StatusOK {
             os.Exit(1)
         }
         os.Exit(0)

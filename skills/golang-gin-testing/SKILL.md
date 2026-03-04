@@ -4,7 +4,7 @@ description: "Test Go Gin REST APIs with unit, integration, and end-to-end tests
 license: MIT
 metadata:
   author: henriqueatila
-  version: "1.0.0"
+  version: "1.0.2"
 ---
 
 # golang-gin-testing — Testing REST APIs
@@ -355,8 +355,11 @@ func TestUserService_Create_DuplicateEmail(t *testing.T) {
         Password: "secret123",
     })
 
-    if !errors.Is(err, domain.ErrConflict) {
-        t.Errorf("expected ErrConflict, got %v", err)
+    // Use errors.As to unwrap *AppError and inspect the HTTP status code.
+    // errors.Is works only if AppError implements Is(); errors.As is always safe.
+    var appErr *domain.AppError
+    if !errors.As(err, &appErr) || appErr.Code != 409 {
+        t.Errorf("expected ErrConflict (409 AppError), got %v", err)
     }
 }
 ```
@@ -389,7 +392,7 @@ go tool cover -html=coverage.out
 
 Load these when you need deeper detail:
 
-- **[references/unit-tests.md](references/unit-tests.md)** — Handler httptest patterns, testing authenticated routes with mock JWT, middleware isolation tests, mock generation with `gomock`/manual mocks, `t.Helper`/`t.Cleanup`/`t.Parallel`, test fixtures and factories
+- **[references/unit-tests.md](references/unit-tests.md)** — Handler httptest patterns, testing authenticated routes with mock JWT, middleware isolation tests, mock generation with `gomock`/manual mocks, `t.Helper`/`t.Cleanup`/`t.Parallel`, test fixtures and factories, benchmark tests (`BenchmarkX`), fuzz tests (`FuzzX`)
 - **[references/integration-tests.md](references/integration-tests.md)** — testcontainers-go setup, `TestMain` for DB lifecycle, repository integration tests, cleanup between tests, build tags, fixture loading
 - **[references/e2e.md](references/e2e.md)** — End-to-end flow testing (register → login → CRUD), docker-compose test setup, GitHub Actions CI/CD, environment configuration, cleanup and idempotency
 

@@ -4,7 +4,7 @@ description: "Deploy Go Gin APIs with Docker, docker-compose, and Kubernetes. Co
 license: MIT
 metadata:
   author: henriqueatila
-  version: "1.0.0"
+  version: "1.0.2"
 ---
 
 # golang-gin-deploy — Containerization & Deployment
@@ -142,7 +142,6 @@ package config
 import (
     "fmt"
     "os"
-    "strconv"
     "time"
 )
 
@@ -207,17 +206,6 @@ func parseDuration(s string, fallback time.Duration) time.Duration {
     return d
 }
 
-// parseInt is available for other numeric env vars if needed
-func parseInt(s string, fallback int) int {
-    if s == "" {
-        return fallback
-    }
-    v, err := strconv.Atoi(s)
-    if err != nil {
-        return fallback
-    }
-    return v
-}
 ```
 
 ## .dockerignore

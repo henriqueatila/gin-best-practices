@@ -4,7 +4,7 @@ description: "Integrate PostgreSQL databases with Go Gin APIs using GORM or sqlx
 license: MIT
 metadata:
   author: henriqueatila
-  version: "1.0.0"
+  version: "1.0.3"
 ---
 
 # golang-gin-database — Database Integration
@@ -37,12 +37,13 @@ import (
 )
 
 type User struct {
-    ID        string    `json:"id"`
-    Name      string    `json:"name"`
-    Email     string    `json:"email"`
-    Role      string    `json:"role"`
-    CreatedAt time.Time `json:"created_at"`
-    UpdatedAt time.Time `json:"updated_at"`
+    ID           string
+    Name         string
+    Email        string
+    Role         string
+    PasswordHash string    // set by service layer before persisting; never serialized to API responses
+    CreatedAt    time.Time
+    UpdatedAt    time.Time
 }
 
 type ListOptions struct {
@@ -240,7 +241,6 @@ import (
     "os"
     "time"
 
-    "myapp/internal/domain"
     "myapp/internal/handler"
     "myapp/internal/repository"
     "myapp/internal/service"

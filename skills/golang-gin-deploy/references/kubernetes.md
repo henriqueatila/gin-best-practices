@@ -537,10 +537,14 @@ k8s/
 
 ```yaml
 # k8s/migrate-job.yaml
+# NOTE: For Helm deployments, replace the static name with:
+#   name: db-migrate-{{ .Values.image.tag }}
+# For raw kubectl apply, use a timestamp suffix or generateName instead:
+#   generateName: db-migrate-
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: db-migrate-{{ .Values.image.tag }}   # unique name per deploy
+  name: db-migrate-v1-0-0   # replace with your version tag (e.g. db-migrate-v1-2-3)
   namespace: default
 spec:
   backoffLimit: 3

@@ -469,10 +469,10 @@ func JWTSubjectExtractor(c *gin.Context) string {
 	return "user:" + sub
 }
 
-// KeyedRateLimiter wraps any limiter middleware with a custom key extractor.
+// WithKeyExtractor wraps any limiter middleware with a custom key extractor.
 // keyFn derives the rate-limit key; if it returns "", c.ClientIP() is used.
 // limiterFn must accept a key and return gin.HandlerFunc (partial application pattern).
-func withKeyExtractor(keyFn ClientKeyFunc, next func(key string) gin.HandlerFunc) gin.HandlerFunc {
+func WithKeyExtractor(keyFn ClientKeyFunc, next func(key string) gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := keyFn(c)
 		if key == "" {
@@ -487,7 +487,10 @@ func withKeyExtractor(keyFn ClientKeyFunc, next func(key string) gin.HandlerFunc
 
 ```go
 // main.go
-limiter := func(key string) gin.HandlerFunc {
+// withKeyExtractor + limiterFn compose into a single gin.HandlerFunc.
+// APIKeyExtractor has signature func(*gin.Context) string (ClientKeyFunc),
+// not gin.HandlerFunc — it cannot be used with r.Use() directly.
+limiterFn := func(key string) gin.HandlerFunc {
     return middleware.RedisTokenBucketLimiter(middleware.RedisTokenBucketConfig{
         Client:    rdb,
         Capacity:  100,
@@ -496,8 +499,8 @@ limiter := func(key string) gin.HandlerFunc {
     })
 }
 
-r.Use(middleware.APIKeyExtractor) // sets key; shown simplified here
-// In practice, compose withKeyExtractor + limiter at route group level.
+api := r.Group("/api/v1")
+api.Use(middleware.WithKeyExtractor(middleware.APIKeyExtractor, limiterFn))
 ```
 
 ---

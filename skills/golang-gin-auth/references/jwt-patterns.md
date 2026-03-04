@@ -110,7 +110,7 @@ type refreshRequest struct {
 func (h *AuthHandler) Refresh(c *gin.Context) {
     var req refreshRequest
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
         return
     }
 
@@ -225,7 +225,11 @@ func (h *AuthHandler) Logout(c *gin.Context) {
         c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
         return
     }
-    claims := val.(*auth.Claims)
+    claims, ok := val.(*auth.Claims)
+    if !ok {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
 
     expiry := claims.ExpiresAt.Time
     if err := h.blacklist.Revoke(c.Request.Context(), claims.ID, expiry); err != nil {

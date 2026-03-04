@@ -455,6 +455,7 @@ import (
 
     "github.com/google/uuid"
     "github.com/jmoiron/sqlx"
+    "github.com/lib/pq"
     "myapp/internal/domain"
 )
 
@@ -476,11 +477,14 @@ func (r *sqlxUserRepository) Create(ctx context.Context, user *domain.User) erro
         user.Role = "user"
     }
 
+    // PasswordHash must be set on user before calling Create.
+    // The service layer hashes the password and stores it in user.PasswordHash.
     row := userInsertRow{
-        ID:    user.ID,
-        Name:  user.Name,
-        Email: user.Email,
-        Role:  user.Role,
+        ID:           user.ID,
+        Name:         user.Name,
+        Email:        user.Email,
+        PasswordHash: user.PasswordHash, // set by service before calling repo
+        Role:         user.Role,
     }
     _, err := r.db.NamedExecContext(ctx, insertUserSQL, row)
     if err != nil {
@@ -572,8 +576,9 @@ func mapSqlxError(err error) error {
     if errors.Is(err, sql.ErrNoRows) {
         return domain.ErrNotFound.New(err)
     }
-    // PostgreSQL unique violation (SQLSTATE 23505)
-    if strings.Contains(err.Error(), "23505") {
+    // PostgreSQL unique violation (SQLSTATE 23505) — typed assertion via lib/pq
+    var pqErr *pq.Error
+    if errors.As(err, &pqErr) && pqErr.Code == "23505" {
         return domain.ErrConflict.New(err)
     }
     return domain.ErrInternal.New(err)

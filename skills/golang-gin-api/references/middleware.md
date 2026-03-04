@@ -303,24 +303,25 @@ import (
 )
 
 // Timeout returns middleware that cancels the request context after d.
-// Handlers must pass c.Request.Context() to all blocking calls.
+// Handlers must pass c.Request.Context() to all blocking calls for cancellation to work.
+//
+// The context deadline propagates to every downstream blocking call that respects it
+// (database queries, HTTP clients, gRPC calls). This does NOT forcibly interrupt
+// handlers that ignore context — it is cooperative cancellation only.
 func Timeout(d time.Duration) gin.HandlerFunc {
     return func(c *gin.Context) {
         ctx, cancel := context.WithTimeout(c.Request.Context(), d)
         defer cancel()
 
+        // Replace request context with the deadline-bearing one.
+        // c.Next() is called on the main goroutine — no data race on c.Writer.
         c.Request = c.Request.WithContext(ctx)
+        c.Next()
 
-        done := make(chan struct{})
-        go func() {
-            c.Next()
-            close(done)
-        }()
-
-        select {
-        case <-done:
-            // Handler completed within timeout
-        case <-ctx.Done():
+        // If the context expired before the handler responded, return 504.
+        // This handles the case where a handler finished after the deadline
+        // but before writing a response (e.g., returned early on ctx.Err()).
+        if ctx.Err() == context.DeadlineExceeded && !c.Writer.Written() {
             c.AbortWithStatusJSON(http.StatusGatewayTimeout, gin.H{
                 "error": "request timeout",
             })
@@ -336,7 +337,11 @@ api := r.Group("/api/v1")
 api.Use(middleware.Timeout(30 * time.Second))
 ```
 
-**Critical — goroutine safety:** This middleware launches `c.Next()` in a goroutine. Normally you must call `c.Copy()` before passing `*gin.Context` to a goroutine (see gin-api SKILL.md). This is an **exception**: the timeout middleware controls the entire request lifecycle — the goroutine runs `c.Next()` which completes the handler chain, and Gin's first-write-wins ensures safety if the timeout fires first. Handlers should check `ctx.Done()` in long loops.
+**How this works:** The deadline is embedded in `c.Request.Context()`. Any handler that passes `c.Request.Context()` to a database query, HTTP client, or gRPC call will have that call cancelled when the deadline fires. `c.Next()` runs synchronously on the middleware goroutine — no concurrent writes to `c.Writer`.
+
+**Important:** This is cooperative cancellation. Handlers that do not check `ctx.Done()` or pass context to blocking calls will not be interrupted. For CPU-bound handlers, add an explicit `ctx.Err()` check in tight loops.
+
+**Do NOT call `c.Next()` in a goroutine** for timeout middleware. Gin's `ResponseWriter` is not thread-safe. Calling `c.Next()` in a goroutine without synchronization creates a data race when both the goroutine and the timeout branch attempt to write to `c.Writer` concurrently.
 
 ---
 

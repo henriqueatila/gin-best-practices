@@ -4,7 +4,7 @@ description: "Build REST APIs with Go Gin framework. Covers routing, handler pat
 license: MIT
 metadata:
   author: henriqueatila
-  version: "1.0.0"
+  version: "1.0.4"
 ---
 
 # golang-gin-api — Core REST API Development
@@ -54,6 +54,7 @@ import (
     "time"
 
     "github.com/gin-gonic/gin"
+    "gorm.io/gorm"
     "myapp/internal/handler"
     "myapp/internal/service"
     "myapp/internal/repository"
@@ -70,18 +71,21 @@ func main() {
     r.Use(middleware.Logger(logger))
     r.Use(middleware.Recovery(logger))
 
-    // Dependency injection
+    // Dependency injection (db initialized via gin-database skill)
+    var db *gorm.DB // see gin-database skill for initialization
     userRepo := repository.NewUserRepository(db)
     userSvc := service.NewUserService(userRepo)
-    userHandler := handler.NewUserHandler(userSvc)
+    userHandler := handler.NewUserHandler(userSvc, logger)
 
     registerRoutes(r, userHandler)
 
     srv := &http.Server{
-        Addr:         os.Getenv("PORT"),
-        Handler:      r,
-        ReadTimeout:  10 * time.Second,
-        WriteTimeout: 10 * time.Second,
+        Addr:              ":" + os.Getenv("PORT"),
+        Handler:           r,
+        ReadHeaderTimeout: 5 * time.Second,  // guards against Slowloris (CWE-400)
+        ReadTimeout:       10 * time.Second,
+        WriteTimeout:      10 * time.Second,
+        IdleTimeout:       120 * time.Second,
     }
 
     go func() {
@@ -308,12 +312,31 @@ type AppError struct {
 func (e *AppError) Error() string { return e.Message }
 func (e *AppError) Unwrap() error  { return e.Err }
 
+// Is enables errors.Is() to match wrapped sentinel errors by value, not pointer identity.
+func (e *AppError) Is(target error) bool {
+    return errors.Is(e.Err, target)
+}
+
 var (
     ErrNotFound       = &AppError{Code: 404, Message: "resource not found"}
     ErrUnauthorized   = &AppError{Code: 401, Message: "unauthorized"}
     ErrForbidden      = &AppError{Code: 403, Message: "forbidden"}
     ErrConflict       = &AppError{Code: 409, Message: "resource already exists"}
     ErrValidation     = &AppError{Code: 422, Message: "validation failed"}
+)
+```
+
+```go
+// internal/handler/errors.go
+package handler
+
+import (
+    "errors"
+    "log/slog"
+    "net/http"
+
+    "github.com/gin-gonic/gin"
+    "myapp/internal/domain"
 )
 
 // handleServiceError maps domain errors to HTTP responses.

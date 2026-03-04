@@ -204,8 +204,11 @@ var roleRank = map[string]int{
 }
 
 // HasRoleAtLeast returns true if userRole has rank >= requiredRole.
+// Returns false for any unrecognized role — unknown roles are denied, not defaulted to guest.
 func HasRoleAtLeast(userRole, requiredRole string) bool {
-    return roleRank[userRole] >= roleRank[requiredRole]
+    ur, ok1 := roleRank[userRole]
+    rr, ok2 := roleRank[requiredRole]
+    return ok1 && ok2 && ur >= rr
 }
 ```
 
@@ -310,7 +313,7 @@ func (h *PostHandler) GetByID(c *gin.Context) {
     }
     var params uriParams
     if err := c.ShouldBindURI(&params); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
         return
     }
 
@@ -342,7 +345,7 @@ func (h *UserHandler) Update(c *gin.Context) {
     }
     var params uriParams
     if err := c.ShouldBindURI(&params); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
         return
     }
 
@@ -360,7 +363,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 
     var req domain.UpdateUserRequest
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
         return
     }
 
@@ -411,13 +414,19 @@ func (h *AdminHandler) Impersonate(c *gin.Context) {
 
     var req impersonateRequest
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
         return
     }
 
     target, err := h.userRepo.GetByID(c.Request.Context(), req.TargetUserID)
     if err != nil {
         handleServiceError(c, err, h.logger)
+        return
+    }
+
+    // Prevent admin-to-admin privilege escalation
+    if target.Role == "admin" || target.Role == "superadmin" {
+        c.JSON(http.StatusForbidden, gin.H{"error": "cannot impersonate admin users"})
         return
     }
 

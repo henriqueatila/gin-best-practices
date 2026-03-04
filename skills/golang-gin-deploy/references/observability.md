@@ -649,8 +649,10 @@ func main() {
 	// ... register routes
 
 	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: r,
+		Addr:              ":" + cfg.Port,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,  // Slowloris protection
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start server in background
