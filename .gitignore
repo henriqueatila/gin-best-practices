@@ -56,7 +56,7 @@ next-env.d.ts
 build
 GoogleService-Info.plist
 
-repomix-output.xml
+repomix-output.*
 .serena/cache
 plans/**/*
 !plans/templates/*
