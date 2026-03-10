@@ -23,7 +23,7 @@ Multi-agent guidance for the `golang-gin-best-practices` repository.
 ### Packager
 - Generates zip files under `skills/` (one per skill)
 - Updates `metadata.json` version fields
-- Ensures `README.md` paths match actual structure
+- Ensures skill folder structure matches spec
 
 ## File Ownership
 
@@ -32,7 +32,6 @@ Multi-agent guidance for the `golang-gin-best-practices` repository.
 | `skills/*/SKILL.md` | Skill Author |
 | `skills/*/references/*.md` | Skill Author |
 | `skills/*/metadata.json` | Packager |
-| `skills/*/README.md` | Packager |
 | `skills/*.zip` | Packager |
 | `docs/*` | Skill Author |
 | `README.md` | Packager |

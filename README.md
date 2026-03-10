@@ -113,7 +113,6 @@ golang-gin-best-practices/
 │   ├── golang-gin-architect/
 │   │   ├── SKILL.md                 # System design, complexity assessment, skill orchestration
 │   │   ├── metadata.json
-│   │   ├── README.md
 │   │   └── references/
 │   │       ├── complexity-assessment.md   # Decision trees, complexity budget, pattern gates
 │   │       ├── system-design.md           # C4 model, bounded contexts, domain modeling
@@ -136,7 +135,6 @@ golang-gin-best-practices/
 │   ├── golang-gin-api/
 │   │   ├── SKILL.md                 # Server setup, routing, handlers, binding, errors
 │   │   ├── metadata.json
-│   │   ├── README.md
 │   │   └── references/
 │   │       ├── routing.md           # Route groups, versioning, pagination, file uploads
 │   │       ├── middleware.md        # CORS, rate limiting, request ID, timeout, recovery
@@ -147,7 +145,6 @@ golang-gin-best-practices/
 │   ├── golang-gin-auth/
 │   │   ├── SKILL.md                 # JWT middleware, login handler, RBAC, token lifecycle
 │   │   ├── metadata.json
-│   │   ├── README.md
 │   │   └── references/
 │   │       ├── jwt-patterns.md      # Token refresh, blacklisting (Redis), RS256 vs HS256
 │   │       └── rbac.md              # RequireRole, permissions, multi-tenant authorization
@@ -155,7 +152,6 @@ golang-gin-best-practices/
 │   ├── golang-gin-database/
 │   │   ├── SKILL.md                 # Repository pattern, GORM/sqlx, connection pooling, DI
 │   │   ├── metadata.json
-│   │   ├── README.md
 │   │   └── references/
 │   │       ├── gorm-patterns.md     # Models, CRUD, soft deletes, transactions, hooks
 │   │       ├── sqlx-patterns.md     # Struct scanning, NamedExec, IN clauses, transactions
@@ -164,7 +160,6 @@ golang-gin-best-practices/
 │   ├── golang-gin-psql-dba/
 │   │   ├── SKILL.md                 # Schema design, index strategy, migration safety, extensions
 │   │   ├── metadata.json
-│   │   ├── README.md
 │   │   └── references/
 │   │       ├── schema-design.md             # Naming, types, constraints, multi-tenancy, audit
 │   │       ├── migration-impact-analysis.md # Lock levels, zero-downtime ALTER TABLE patterns
@@ -182,7 +177,6 @@ golang-gin-best-practices/
 │   ├── golang-gin-testing/
 │   │   ├── SKILL.md                 # httptest, table-driven tests, mock repositories
 │   │   ├── metadata.json
-│   │   ├── README.md
 │   │   └── references/
 │   │       ├── unit-tests.md        # Handler tests, middleware isolation, mock generation
 │   │       ├── integration-tests.md # testcontainers, TestMain, DB lifecycle, cleanup
@@ -191,7 +185,6 @@ golang-gin-best-practices/
 │   ├── golang-gin-deploy/
 │   │   ├── SKILL.md                 # Multi-stage Dockerfile, docker-compose, health checks
 │   │   ├── metadata.json
-│   │   ├── README.md
 │   │   └── references/
 │   │       ├── dockerfile.md        # Distroless, build args, layer caching, image size
 │   │       ├── docker-compose.md    # Air hot reload, pgadmin, networking, integration tests

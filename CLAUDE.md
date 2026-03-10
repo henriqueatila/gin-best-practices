@@ -30,7 +30,6 @@ Each skill directory contains:
 - `SKILL.md` — Primary skill file with YAML frontmatter (`name`, `description`, `license`, `metadata`). Under 500 lines. Loaded by agents automatically.
 - `references/*.md` — Deep-dive reference files loaded on demand.
 - `metadata.json` — Version, author, abstract, external references.
-- `README.md` — Brief description and structure overview.
 
 ## Conventions
 
